@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <title>展示会木工積算アシスタント</title>
+    <style>
+      body {
+        margin: 0;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        height: 100vh;
+        display: flex;
+        flex-direction: column;
+      }
+
+      header {
+        padding: 10px 16px;
+        border-bottom: 1px solid #ddd;
+        font-weight: 600;
+        background: #f5f5f7;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+      }
+
+      main {
+        flex: 1;
+        display: flex;
+        overflow: hidden;
+      }
+
+      .column {
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+      }
+
+      .column-left {
+        flex: 0 0 380px;
+        max-width: 420px;
+        border-right: 1px solid #ddd;
+      }
+
+      .column-right {
+        flex: 1 1 auto;
+      }
+
+      .section {
+        padding: 8px 12px;
+        border-bottom: 1px solid #eee;
+        flex-shrink: 0;
+      }
+
+      .section h2 {
+        margin: 0 0 4px;
+        font-size: 14px;
+      }
+
+      textarea {
+        width: 100%;
+        resize: none;
+        font-family: Menlo, Monaco, Consolas, monospace;
+        font-size: 12px;
+        box-sizing: border-box;
+      }
+
+      label {
+        font-size: 12px;
+      }
+
+      select,
+      button,
+      input[type="number"],
+      input[type="text"] {
+        font-size: 12px;
+      }
+
+      #status {
+        font-size: 11px;
+        color: #555;
+      }
+
+      #left-scroll,
+      #right-scroll {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        overflow: auto;
+      }
+
+      #prompt-area {
+        padding: 8px 12px;
+        flex: 1;
+      }
+
+      #prompt-text {
+        height: 100%;
+      }
+
+      #json-input-area {
+        padding: 8px 12px;
+        border-top: 1px solid #eee;
+        flex-shrink: 0;
+      }
+
+      #gpt-output {
+        height: 120px;
+        margin-top: 4px;
+      }
+
+      #right-scroll-inner {
+        display: flex;
+        flex-direction: column;
+        flex: 1;
+        padding: 8px 12px;
+        box-sizing: border-box;
+      }
+
+      #items-view {
+        flex: 0 0 auto;
+        max-height: 260px;
+        overflow: auto;
+        font-size: 12px;
+        margin-bottom: 8px;
+      }
+
+      #item-editor-container {
+        flex: 1 1 auto;
+        border-top: 1px solid #ddd;
+        padding-top: 8px;
+        overflow: auto;
+      }
+
+      table {
+        border-collapse: collapse;
+        width: 100%;
+        font-size: 11px;
+      }
+
+      th,
+      td {
+        border: 1px solid #ccc;
+        padding: 2px 4px;
+        text-align: left;
+      }
+
+      th {
+        background: #f0f0f0;
+      }
+
+      tr[data-index] {
+        cursor: pointer;
+      }
+
+      tr[data-index].selected {
+        outline: 2px solid #ffb347;
+      }
+
+      .item-form-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-bottom: 4px;
+        align-items: center;
+      }
+
+      .item-form-row label {
+        min-width: 120px;
+      }
+
+      .item-form-row input[type="text"],
+      .item-form-row input[type="number"],
+      .item-form-row select,
+      .item-form-row textarea {
+        flex: 1;
+      }
+
+      .inline-note {
+        font-size: 11px;
+        color: #666;
+      }
+
+      .tabs {
+        display: inline-flex;
+        border-radius: 999px;
+        border: 1px solid #ccc;
+        overflow: hidden;
+        margin-top: 4px;
+      }
+
+      .tab-btn {
+        padding: 2px 10px;
+        font-size: 11px;
+        border: none;
+        background: transparent;
+        cursor: pointer;
+      }
+
+      .tab-btn.active {
+        background: #007aff;
+        color: #fff;
+      }
+
+      .tab-content {
+        margin-top: 4px;
+      }
+
+      .hidden {
+        display: none;
+      }
+
+      details summary {
+        cursor: pointer;
+        font-size: 12px;
+      }
+
+      details {
+        margin-top: 4px;
+        margin-bottom: 4px;
+        padding: 4px 6px;
+        background: #f8f8f8;
+        border-radius: 4px;
+      }
+
+      /* 変更ハイライト */
+      .user-changed-current {
+        background-color: #a8ffb0 !important; /* 今ラウンドの手動変更（濃い緑） */
+      }
+      .user-changed-previous {
+        background-color: #e0ffe0 !important; /* ひとつ前ラウンドの手動変更（薄い緑） */
+      }
+      .api-changed {
+        background-color: #fff7c2 !important; /* API（ChatGPT）変更（黄） */
+      }
+
+      .header-right-group {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+
+      /* nlCorrectionGlobal 専用 */
+      #nl-global {
+        height: 90px;
+        font-family: Menlo, Monaco, Consolas, monospace;
+        font-size: 12px;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div>展示会木工造作 積算アシスタント（テストモード対応）</div>
+      <div class="header-right-group">
+        <label>
+          <input type="checkbox" id="change-highlight-toggle" checked />
+          変更ハイライト
+        </label>
+        <label>
+          <input type="checkbox" id="test-mode-toggle" />
+          テストモード
+        </label>
+        <span id="status"></span>
+      </div>
+    </header>
+
+    <main>
+      <!-- 左カラム：プロンプト＋JSON貼り付け -->
+      <div class="column column-left">
+        <div id="left-scroll">
+          <div class="section">
+            <h2>1. プロンプト生成（ChatGPTに手動で投げる用）</h2>
+            <div>
+              <label for="stage-select">ステージ:</label>
+              <select id="stage-select">
+                <option value="extract">1: 図面→構造物抽出</option>
+                <option value="update">2: JSON差分反映</option>
+                <option value="estimate">3: 最終積算</option>
+              </select>
+              <button id="btn-load-prompt">プロンプト読込</button>
+            </div>
+            <p style="font-size: 11px; margin-top: 4px;">
+              ※テストモード時：ここに表示されたプロンプトをChatGPTに貼り付け、図面ファイルも添付して実行してください。
+            </p>
+          </div>
+
+          <div id="prompt-area">
+            <textarea id="prompt-text" spellcheck="false"></textarea>
+          </div>
+
+          <div id="json-input-area">
+            <h2 style="font-size: 13px; margin: 0 0 4px;">
+              2. ChatGPT出力(JSON)の貼り付け
+            </h2>
+            <p style="font-size: 11px; margin-top: 2px;">
+              ChatGPTから返ってきたJSONを下に貼り付け、「JSONを取り込む」を押してください。
+            </p>
+            <textarea
+              id="gpt-output"
+              placeholder="ChatGPTから返ってきたJSONをここに貼り付けてください"
+              spellcheck="false"
+            ></textarea>
+
+            <div style="margin-top: 4px; display: flex; gap: 4px; flex-wrap: wrap;">
+              <button id="btn-import-json">JSONを取り込む</button>
+              <button id="btn-generate-diff">
+                差分JSONを生成して「更新プロンプト」にセット
+              </button>
+              <button id="btn-restore-state" disabled>
+                ロールバック(UNDO)
+              </button>
+              <button id="btn-redo-state" disabled>
+                やり直し(REDO)
+              </button>
+            </div>
+
+            <p style="font-size: 10px; color: #666; margin-top: 2px;">
+              ※UNDO/REDO は、直近の状態から最大5ステップまで戻したり進めたりできます（色のマークも含めて復元）。
+            </p>
+
+            <details id="state-io-panel">
+              <summary>状態のエクスポート／インポート（ファイル）</summary>
+              <p style="font-size: 11px; margin-top: 4px;">
+                現在の状態（JSON・選択中アイテム・色マーク情報など）を
+                <strong>.json テキストファイル</strong>
+                として保存・再読み込みできます。
+              </p>
+
+              <div style="margin-top: 4px; display: flex; gap: 4px; flex-wrap: wrap; align-items: center;">
+                <button id="btn-export-state-file">状態をファイルに保存</button>
+                <input
+                  id="state-file-input"
+                  type="file"
+                  accept=".json,application/json,text/plain"
+                  style="display: none;"
+                />
+                <button id="btn-import-state-file">ファイルから状態を読み込み</button>
+              </div>
+
+              <p style="font-size: 10px; color: #666; margin-top: 2px;">
+                ※保存したファイルを同じボタンから読み込むことで、別のマシンや後日でも同じ状態に復元できます。
+              </p>
+            </details>
+          </div>
+        </div>
+      </div>
+
+      <!-- 右カラム：構造物一覧＋編集 -->
+      <div class="column column-right">
+        <div id="right-scroll">
+          <div id="right-scroll-inner">
+            <div class="section" style="border-bottom: none; padding-bottom: 4px;">
+              <h2>3. 構造物リストと編集</h2>
+              <p style="font-size: 11px; margin-top: 2px;">
+                テーブル行をクリック → 右下フォームを編集すると即座に反映されます。<br />
+                濃い緑＝現在ラウンドでの手動編集 / 薄い緑＝前ラウンドの手動編集 / 黄＝ChatGPT側での変更
+              </p>
+            </div>
+
+            <!-- nlCorrectionGlobal -->
+            <div class="section" style="border-top: 1px solid #eee;">
+              <h2>全体修正指示（nlCorrectionGlobal）</h2>
+              <p style="font-size: 11px; margin: 2px 0 4px;">
+                抽出全体に対する自然言語の修正指示です。入力すると即時にJSONへ反映され、差分バッチにも含まれます。
+              </p>
+              <textarea
+                id="nl-global"
+                placeholder="例: 全体の壁パネルはH=2800で統一 / 図面右側の什器群を除外 など"
+                spellcheck="false"
+              ></textarea>
+
+              <div style="margin-top: 6px; display:flex; gap:6px; flex-wrap: wrap; align-items:center;">
+                <button id="btn-add-empty-item">空の項目を追加（手動追加）</button>
+                <span class="inline-note">
+                  ※追加後は下の「フォーム編集」で入力してください（source="user" / id自動採番）
+                </span>
+              </div>
+            </div>
+
+            <div id="items-view"></div>
+
+            <div id="item-editor-container">
+              <div style="margin-bottom: 4px; font-size: 12px;">
+                <strong>選択中アイテム</strong>
+                <span
+                  id="item-editor-label"
+                  style="margin-left: 8px; font-size: 11px; color: #555;"
+                >
+                  （行をクリックするとここに表示されます）
+                </span>
+              </div>
+
+              <!-- タブ切り替え：フォーム / JSON -->
+              <div class="tabs">
+                <button id="tab-form" class="tab-btn active" type="button">
+                  フォーム編集
+                </button>
+                <button id="tab-json" class="tab-btn" type="button">
+                  JSON編集
+                </button>
+              </div>
+
+              <!-- フォームタブ -->
+              <div class="tab-content" id="tab-content-form">
+                <div class="item-form-row">
+                  <label>ID</label>
+                  <span id="item-form-id" style="font-size: 11px; color: #555;">-</span>
+                </div>
+
+                <div class="item-form-row">
+                  <label for="item-form-include">
+                    積算対象(includeInEstimate)
+                  </label>
+                  <input id="item-form-include" type="checkbox" />
+                  <span class="inline-note">チェックで積算対象に含める</span>
+                </div>
+
+                <div class="item-form-row">
+                  <label for="item-form-name">名称(name)</label>
+                  <input id="item-form-name" type="text" />
+                </div>
+
+                <div class="item-form-row">
+                  <label for="item-form-structure-type">
+                    種別(type / structureType)
+                  </label>
+                  <select id="item-form-structure-type">
+                    <option value="">（変更しない）</option>
+                    <option value="既存壁パネル">既存壁パネル</option>
+                    <option value="新規壁パネル">新規壁パネル</option>
+                    <option value="特殊壁面">特殊壁面</option>
+                    <option value="単純什器">単純什器</option>
+                    <option value="特殊什器">特殊什器</option>
+                    <option value="柱">柱</option>
+                    <option value="梁">梁</option>
+                    <option value="特大造作物">特大造作物</option>
+                    <option value="複雑造作物">複雑造作物</option>
+                    <option value="非木工造作物">非木工造作物</option>
+                  </select>
+                </div>
+
+                <div class="item-form-row">
+                  <label>寸法(dimensions H/W/D, mm)</label>
+                  <input id="item-form-dim-h" type="number" step="1" placeholder="H" style="width: 60px;" />
+                  <input id="item-form-dim-w" type="number" step="1" placeholder="W" style="width: 60px;" />
+                  <input id="item-form-dim-d" type="number" step="1" placeholder="D" style="width: 60px;" />
+                </div>
+
+                <div class="item-form-row">
+                  <label for="item-form-quantity">数量(quantity)</label>
+                  <input id="item-form-quantity" type="number" step="1" min="1" placeholder="数量" style="max-width: 100px;" />
+                </div>
+
+                <div class="item-form-row">
+                  <label for="item-form-materials">材料(materials.kind / quantity)</label>
+                </div>
+                <div class="item-form-row">
+                  <textarea
+                    id="item-form-materials"
+                    rows="3"
+                    style="width: 100%;"
+                    placeholder="1行につき1種類（kind x quantity）で入力：
+小割 x 3
+ベニヤ x 2
+ラワンランバ x 1"
+                  ></textarea>
+                </div>
+
+                <div class="item-form-row">
+                  <label for="item-form-finishes">仕上げ(finishes, 1行につき1種類)</label>
+                </div>
+                <div class="item-form-row">
+                  <textarea
+                    id="item-form-finishes"
+                    rows="3"
+                    style="width: 100%;"
+                    placeholder="例:
+経師
+ポリ板"
+                  ></textarea>
+                </div>
+
+                <div class="item-form-row">
+                  <label for="item-form-price-unitprice">単価(price.unitPrice)</label>
+                  <input id="item-form-price-unitprice" type="number" step="1" placeholder="数値のみ, JPY" />
+                </div>
+
+                <div class="item-form-row">
+                  <label>材料費(materialCost.amount/notes)</label>
+                  <input id="item-form-materialcost-amount" type="number" step="1" placeholder="金額(JPY)" style="max-width: 140px;" />
+                  <input id="item-form-materialcost-notes" type="text" placeholder="根拠メモ(任意)" />
+                </div>
+
+                <div class="item-form-row">
+                  <label for="item-form-labor-perunit-days">人工(1台あたり laborPerUnit, 人日)</label>
+                  <input id="item-form-labor-perunit-days" type="number" step="0.01" placeholder="人日" style="max-width: 100px;" />
+                  <span class="inline-note">※内部的には laborPerUnit.unit="人日"</span>
+                </div>
+
+                <div class="item-form-row">
+                  <label for="item-form-labor-days">人工合計(laborTotal, 人日)</label>
+                  <input id="item-form-labor-days" type="number" step="0.01" placeholder="人日" style="max-width: 100px;" />
+                  <span class="inline-note">※内部的には laborTotal.unit="人日"</span>
+                </div>
+
+                <!-- ★移動：nlCorrection を人工合計の下に配置 -->
+                <div class="item-form-row">
+                  <label for="item-form-nlcorrection">自然言語修正指示(nlCorrection)</label>
+                </div>
+                <div class="item-form-row">
+                  <textarea
+                    id="item-form-nlcorrection"
+                    rows="3"
+                    style="width: 100%;"
+                    placeholder="例: 壁面仕上げを経師からポリ板に変更、開口900×2100を追加 など"
+                  ></textarea>
+                </div>
+
+                <details id="item-advanced">
+                  <summary>詳細設定</summary>
+
+                  <div class="item-form-row">
+                    <label for="item-form-isbent">曲げ(isBent)</label>
+                    <input id="item-form-isbent" type="checkbox" />
+                  </div>
+
+                  <div class="item-form-row">
+                    <label for="item-form-special-angles">特殊角(hasSpecialAngles)</label>
+                    <input id="item-form-special-angles" type="checkbox" />
+                  </div>
+
+                  <div class="item-form-row">
+                    <label for="item-form-support-heavy">重量物支持(supportsHeavyLoad)</label>
+                    <input id="item-form-support-heavy" type="checkbox" />
+                  </div>
+
+                  <div class="item-form-row">
+                    <label>仕上げ表面積(finishSurfaceArea)</label>
+                    <input id="item-form-finisharea-value" type="number" step="0.01" placeholder="m²" style="max-width: 100px;" />
+                    <input id="item-form-finisharea-notes" type="text" placeholder="算出根拠(任意)" />
+                  </div>
+
+                  <div class="item-form-row">
+                    <label>人工係数(laborCoefficient)</label>
+                    <input id="item-form-laborcoef-value" type="number" step="0.01" placeholder="係数" style="max-width: 100px;" />
+                    <input id="item-form-laborcoef-notes" type="text" placeholder="根拠メモ(任意)" />
+                  </div>
+                </details>
+
+                <div style="margin-top: 4px; margin-bottom: 6px; font-size: 11px; color: #666;">
+                  ※フォームの値を変更すると、即座にアイテムとテーブル・JSON編集内容に反映されます。
+                </div>
+              </div>
+
+              <!-- JSON編集タブ -->
+              <div class="tab-content hidden" id="tab-content-json">
+                <div style="margin-top: 4px; font-size: 12px;">
+                  <strong>JSON直接編集</strong>
+                  <span class="inline-note">（複雑な構造はここで編集してください）</span>
+                </div>
+                <textarea
+                  id="item-editor"
+                  rows="10"
+                  spellcheck="false"
+                  placeholder="{ ... 選択したアイテムのJSON ... }"
+                ></textarea>
+                <div style="margin-top: 4px;">
+                  <button id="btn-apply-item-edit">JSONの変更をアイテムに反映</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div><!-- /right -->
+    </main>
+
+    <script src="./renderer.js"></script>
+  </body>
+</html>

@@ -1,0 +1,277 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/schemas/exhibition-takeoff.json",
+  "title": "展示会図面・抽出結果と積算指示（カテゴリ分類版）",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "stage",
+    "extractedAt",
+    "nlCorrectionGlobal",
+    "woodworkItems",
+    "floorItems",
+    "finishingItems",
+    "electricalItems",
+    "leaseItems",
+    "siteCosts"
+  ],
+  "properties": {
+    "version": { "type": "string", "default": "1.1.2" },
+    "stage": {
+      "type": "string",
+      "enum": ["extraction", "review", "ready_for_estimation"]
+    },
+    "extractedAt": { "type": "string", "format": "date-time" },
+
+    "sourceDocument": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "filename": { "type": "string" },
+        "page": { "type": "integer", "minimum": 1 },
+        "dpi": { "type": "number", "minimum": 1 },
+        "notes": { "type": "string" }
+      }
+    },
+
+    "nlCorrectionGlobal": {
+      "type": "string",
+      "description": "抽出全体に対する自然言語の修正指示"
+    },
+
+    "woodworkItems": {
+      "type": "array",
+      "description": "木工造作物（従来itemsの木工相当）",
+      "items": { "$ref": "#/$defs/woodworkItem" }
+    },
+    "floorItems": {
+      "type": "array",
+      "description": "床",
+      "items": { "$ref": "#/$defs/genericCostItem" }
+    },
+    "finishingItems": {
+      "type": "array",
+      "description": "表装（旧: upholsteryItems）",
+      "items": { "$ref": "#/$defs/genericCostItem" }
+    },
+    "electricalItems": {
+      "type": "array",
+      "description": "電気",
+      "items": { "$ref": "#/$defs/genericCostItem" }
+    },
+    "leaseItems": {
+      "type": "array",
+      "description": "リース",
+      "items": { "$ref": "#/$defs/genericCostItem" }
+    },
+
+    "siteCosts": {
+      "type": "object",
+      "description": "現場費（構造物ではないが積算に含める費目）",
+      "additionalProperties": false,
+      "required": ["laborCost", "transportCost", "wasteDisposalCost"],
+      "properties": {
+        "laborCost": { "$ref": "#/$defs/costAmountWithNotes" },
+        "transportCost": { "$ref": "#/$defs/costAmountWithNotes" },
+        "wasteDisposalCost": { "$ref": "#/$defs/costAmountWithNotes" },
+        "notes": { "type": "string" }
+      }
+    }
+  },
+
+  "$defs": {
+    "sourceKind": {
+      "type": "string",
+      "enum": ["chatGPT", "user"],
+      "description": "chatGPT=API抽出 / user=ユーザー追記"
+    },
+
+    "structureType": {
+      "type": "string",
+      "enum": [
+        "既存壁パネル",
+        "新規壁パネル",
+        "特殊壁面",
+        "単純什器",
+        "特殊什器",
+        "柱",
+        "梁",
+        "特大造作物",
+        "複雑造作物"
+      ],
+      "description": "木工造作物の詳細分類"
+    },
+
+    "dimensionHWD": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["height", "width", "depth"],
+      "properties": {
+        "height": { "type": "number", "exclusiveMinimum": 0 },
+        "width": { "type": "number", "exclusiveMinimum": 0 },
+        "depth": { "type": "number", "exclusiveMinimum": 0 },
+        "unit": { "type": "string", "enum": ["mm", "cm", "m"], "default": "mm" }
+      }
+    },
+
+    "surfaceAreaWithNotes": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["value"],
+      "properties": {
+        "value": { "type": "number", "exclusiveMinimum": 0 },
+        "notes": { "type": "string" }
+      }
+    },
+
+    "coefficientWithNotes": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["value"],
+      "properties": {
+        "value": { "type": "number", "exclusiveMinimum": 0 },
+        "notes": { "type": "string" }
+      }
+    },
+
+    "costAmountWithNotes": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["amount", "currency"],
+      "properties": {
+        "amount": { "type": "number", "minimum": 0 },
+        "currency": { "type": "string", "default": "JPY" },
+        "notes": { "type": "string" }
+      }
+    },
+
+    "materialKind": {
+      "type": "string",
+      "enum": ["小割", "垂木", "ベニヤ", "曲げベニヤ", "ポリ板", "メラミン", "ラワンランバ"]
+    },
+
+    "finishKind": {
+      "type": "string",
+      "enum": ["メラミン", "ポリ板", "経師", "出力シート", "塗装"]
+    },
+
+    "materialSpec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "quantity", "unit"],
+      "properties": {
+        "kind": { "$ref": "#/$defs/materialKind" },
+        "spec": { "type": "string" },
+        "quantity": { "type": "number", "exclusiveMinimum": 0 },
+        "unit": { "type": "string", "enum": ["枚", "本", "m", "m²", "m³", "式", "個"] }
+      }
+    },
+
+    "priceInstruction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode"],
+      "properties": {
+        "mode": { "type": "string", "enum": ["estimate_by_model", "override_fixed"] },
+        "currency": { "type": "string", "default": "JPY" },
+        "unitPrice": { "type": ["number", "null"] },
+        "notes": { "type": "string" }
+      }
+    },
+
+    "laborSpec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["amount", "unit"],
+      "properties": {
+        "amount": { "type": "number", "exclusiveMinimum": 0 },
+        "unit": { "type": "string", "enum": ["人日", "人時"] },
+        "notes": { "type": "string" }
+      }
+    },
+
+    "baseItemFields": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name", "quantity", "includeInEstimate", "price", "nlCorrection", "source"],
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "quantity": { "type": "integer", "minimum": 1 },
+        "includeInEstimate": { "type": "boolean" },
+        "price": { "$ref": "#/$defs/priceInstruction" },
+        "nlCorrection": { "type": "string" },
+        "source": { "$ref": "#/$defs/sourceKind" },
+        "notes": { "type": "string" }
+      }
+    },
+
+    "genericCostItem": {
+      "allOf": [
+        { "$ref": "#/$defs/baseItemFields" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["cost"],
+          "properties": {
+            "cost": { "$ref": "#/$defs/costAmountWithNotes" }
+          }
+        }
+      ],
+      "description": "床/表装/電気/リース向けの汎用積算項目"
+    },
+
+    "woodworkItem": {
+      "allOf": [
+        { "$ref": "#/$defs/baseItemFields" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "structureType",
+            "dimensions",
+            "materials",
+            "finishes",
+            "finishSurfaceArea",
+            "isBent",
+            "hasSpecialAngles",
+            "supportsHeavyLoad",
+            "outlineDescription",
+            "laborPerUnit",
+            "laborTotal",
+            "laborCoefficient",
+            "boundingBoxVolume",
+            "materialCost",
+            "laborCost"
+          ],
+          "properties": {
+            "structureType": { "$ref": "#/$defs/structureType" },
+            "dimensions": { "$ref": "#/$defs/dimensionHWD" },
+            "materials": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/materialSpec" }
+            },
+            "finishes": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/finishKind" }
+            },
+            "finishSurfaceArea": { "$ref": "#/$defs/surfaceAreaWithNotes" },
+            "isBent": { "type": "boolean" },
+            "hasSpecialAngles": { "type": "boolean" },
+            "supportsHeavyLoad": { "type": "boolean" },
+            "outlineDescription": { "type": "string" },
+            "laborPerUnit": { "$ref": "#/$defs/laborSpec" },
+            "laborTotal": { "$ref": "#/$defs/laborSpec" },
+            "laborCoefficient": { "$ref": "#/$defs/coefficientWithNotes" },
+            "boundingBoxVolume": { "type": "number", "minimum": 0 },
+            "materialCost": { "$ref": "#/$defs/costAmountWithNotes" },
+            "laborCost": { "$ref": "#/$defs/costAmountWithNotes" },
+            "recognitionConfidence": { "type": "number", "minimum": 0, "maximum": 1 }
+          }
+        }
+      ],
+      "description": "木工造作物（従来のstructureTypeを保持）"
+    }
+  }
+}
