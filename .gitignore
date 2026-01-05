@@ -23,3 +23,19 @@ release/
 Thumbs.db
 .vscode/
 .idea/
+
+# Logs
+logs/
+*.log
+
+# Runtime data
+pids/
+*.pid
+*.seed
+
+# macOS
+*.swp
+
+# Coverage
+coverage/
+
