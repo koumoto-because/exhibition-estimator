@@ -354,6 +354,7 @@
                 テーブル行をクリック → 右下フォームを編集すると即座に反映されます。<br />
                 濃い緑＝現在ラウンドでの手動編集 / 薄い緑＝前ラウンドの手動編集 / 黄＝ChatGPT側での変更
               </p>
+              <div id="category-tabs" class="tabs" style="margin-top: 6px;"></div>
             </div>
 
             <!-- nlCorrectionGlobal -->
@@ -373,6 +374,25 @@
                 <span class="inline-note">
                   ※追加後は下の「フォーム編集」で入力してください（source="user" / id自動採番）
                 </span>
+              </div>
+            </div>
+
+            <div class="section" id="site-costs-section" style="border-top: 1px solid #eee;">
+              <h2>現場費（siteCosts）</h2>
+              <div class="item-form-row">
+                <label>人工費</label>
+                <input id="sitecosts-labor-amount" type="number" step="1" placeholder="金額(JPY)" style="max-width: 140px;" />
+                <input id="sitecosts-labor-notes" type="text" placeholder="メモ" />
+              </div>
+              <div class="item-form-row">
+                <label>運搬費</label>
+                <input id="sitecosts-transport-amount" type="number" step="1" placeholder="金額(JPY)" style="max-width: 140px;" />
+                <input id="sitecosts-transport-notes" type="text" placeholder="メモ" />
+              </div>
+              <div class="item-form-row">
+                <label>残材処理費</label>
+                <input id="sitecosts-waste-amount" type="number" step="1" placeholder="金額(JPY)" style="max-width: 140px;" />
+                <input id="sitecosts-waste-notes" type="text" placeholder="メモ" />
               </div>
             </div>
 
@@ -419,9 +439,9 @@
                   <input id="item-form-name" type="text" />
                 </div>
 
-                <div class="item-form-row">
+                <div class="item-form-row" data-woodwork-only>
                   <label for="item-form-structure-type">
-                    種別(type / structureType)
+                    種別(structureType)
                   </label>
                   <select id="item-form-structure-type">
                     <option value="">（変更しない）</option>
@@ -434,11 +454,10 @@
                     <option value="梁">梁</option>
                     <option value="特大造作物">特大造作物</option>
                     <option value="複雑造作物">複雑造作物</option>
-                    <option value="非木工造作物">非木工造作物</option>
                   </select>
                 </div>
 
-                <div class="item-form-row">
+                <div class="item-form-row" data-woodwork-only>
                   <label>寸法(dimensions H/W/D, mm)</label>
                   <input id="item-form-dim-h" type="number" step="1" placeholder="H" style="width: 60px;" />
                   <input id="item-form-dim-w" type="number" step="1" placeholder="W" style="width: 60px;" />
@@ -450,10 +469,10 @@
                   <input id="item-form-quantity" type="number" step="1" min="1" placeholder="数量" style="max-width: 100px;" />
                 </div>
 
-                <div class="item-form-row">
+                <div class="item-form-row" data-woodwork-only>
                   <label for="item-form-materials">材料(materials.kind / quantity)</label>
                 </div>
-                <div class="item-form-row">
+                <div class="item-form-row" data-woodwork-only>
                   <textarea
                     id="item-form-materials"
                     rows="3"
@@ -465,10 +484,10 @@
                   ></textarea>
                 </div>
 
-                <div class="item-form-row">
+                <div class="item-form-row" data-woodwork-only>
                   <label for="item-form-finishes">仕上げ(finishes, 1行につき1種類)</label>
                 </div>
-                <div class="item-form-row">
+                <div class="item-form-row" data-woodwork-only>
                   <textarea
                     id="item-form-finishes"
                     rows="3"
@@ -484,19 +503,19 @@
                   <input id="item-form-price-unitprice" type="number" step="1" placeholder="数値のみ, JPY" />
                 </div>
 
-                <div class="item-form-row">
+                <div class="item-form-row" data-woodwork-only>
                   <label>材料費(materialCost.amount/notes)</label>
                   <input id="item-form-materialcost-amount" type="number" step="1" placeholder="金額(JPY)" style="max-width: 140px;" />
                   <input id="item-form-materialcost-notes" type="text" placeholder="根拠メモ(任意)" />
                 </div>
 
-                <div class="item-form-row">
+                <div class="item-form-row" data-woodwork-only>
                   <label for="item-form-labor-perunit-days">人工(1台あたり laborPerUnit, 人日)</label>
                   <input id="item-form-labor-perunit-days" type="number" step="0.01" placeholder="人日" style="max-width: 100px;" />
                   <span class="inline-note">※内部的には laborPerUnit.unit="人日"</span>
                 </div>
 
-                <div class="item-form-row">
+                <div class="item-form-row" data-woodwork-only>
                   <label for="item-form-labor-days">人工合計(laborTotal, 人日)</label>
                   <input id="item-form-labor-days" type="number" step="0.01" placeholder="人日" style="max-width: 100px;" />
                   <span class="inline-note">※内部的には laborTotal.unit="人日"</span>
@@ -515,7 +534,7 @@
                   ></textarea>
                 </div>
 
-                <details id="item-advanced">
+                <details id="item-advanced" data-woodwork-only>
                   <summary>詳細設定</summary>
 
                   <div class="item-form-row">
@@ -545,6 +564,12 @@
                     <input id="item-form-laborcoef-notes" type="text" placeholder="根拠メモ(任意)" />
                   </div>
                 </details>
+
+                <div class="item-form-row" data-generic-only>
+                  <label>費用(cost.amount/notes)</label>
+                  <input id="item-form-cost-amount" type="number" step="1" placeholder="金額(JPY)" style="max-width: 140px;" />
+                  <input id="item-form-cost-notes" type="text" placeholder="根拠メモ(任意)" />
+                </div>
 
                 <div style="margin-top: 4px; margin-bottom: 6px; font-size: 11px; color: #666;">
                   ※フォームの値を変更すると、即座にアイテムとテーブル・JSON編集内容に反映されます。

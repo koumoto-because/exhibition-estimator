@@ -1,7 +1,18 @@
 // src/renderer/renderer.js
 
 // ===== Schema compatibility =====
-const SCHEMA_VERSION = "1.0.12"; // ★ v1.0.12 に更新
+const SCHEMA_VERSION = "1.1.5";
+
+const CATEGORIES = [
+  { key: "woodworkItems", label: "木工造作物" },
+  { key: "floorItems", label: "床" },
+  { key: "finishingItems", label: "表装" },
+  { key: "electricalItems", label: "電気" },
+  { key: "leaseItems", label: "リース" },
+  { key: "siteCosts", label: "現場費" }
+];
+
+let selectedCategoryKey = "woodworkItems";
 
 let basePayload = null;
 let currentPayload = null;
@@ -49,10 +60,22 @@ document.addEventListener("DOMContentLoaded", async () => {
   const btnImportStateFile = document.getElementById("btn-import-state-file");
   const stateFileInput = document.getElementById("state-file-input");
 
+  const categoryTabs = document.getElementById("category-tabs");
+
   const itemsView = document.getElementById("items-view");
+  const itemEditorContainer = document.getElementById("item-editor-container");
 
   // nlCorrectionGlobal
   const nlGlobalTextarea = document.getElementById("nl-global");
+
+  // siteCosts
+  const siteCostsSection = document.getElementById("site-costs-section");
+  const siteCostsLaborAmount = document.getElementById("sitecosts-labor-amount");
+  const siteCostsLaborNotes = document.getElementById("sitecosts-labor-notes");
+  const siteCostsTransportAmount = document.getElementById("sitecosts-transport-amount");
+  const siteCostsTransportNotes = document.getElementById("sitecosts-transport-notes");
+  const siteCostsWasteAmount = document.getElementById("sitecosts-waste-amount");
+  const siteCostsWasteNotes = document.getElementById("sitecosts-waste-notes");
 
   const itemEditor = document.getElementById("item-editor");
   const itemEditorLabel = document.getElementById("item-editor-label");
@@ -77,6 +100,8 @@ document.addEventListener("DOMContentLoaded", async () => {
   const itemFormMaterialCostNotes = document.getElementById("item-form-materialcost-notes");
   const itemFormLaborPerUnitDays = document.getElementById("item-form-labor-perunit-days");
   const itemFormLaborDays = document.getElementById("item-form-labor-days");
+  const itemFormCostAmount = document.getElementById("item-form-cost-amount");
+  const itemFormCostNotes = document.getElementById("item-form-cost-notes");
 
   const itemFormIsBent = document.getElementById("item-form-isbent");
   const itemFormSpecialAngles = document.getElementById("item-form-special-angles");
@@ -93,6 +118,9 @@ document.addEventListener("DOMContentLoaded", async () => {
   const tabJson = document.getElementById("tab-json");
   const tabContentForm = document.getElementById("tab-content-form");
   const tabContentJson = document.getElementById("tab-content-json");
+
+  const woodworkOnlyEls = document.querySelectorAll("[data-woodwork-only]");
+  const genericOnlyEls = document.querySelectorAll("[data-generic-only]");
 
 
 
@@ -158,12 +186,57 @@ function updateSourceInfoUI() {
     if (btnRedoState) btnRedoState.disabled = redoHistory.length === 0;
   }
 
+  function setFormModeForCategory() {
+    const isWoodwork = selectedCategoryKey === "woodworkItems";
+    const isSiteCosts = selectedCategoryKey === "siteCosts";
+    woodworkOnlyEls.forEach((el) => {
+      el.hidden = !isWoodwork;
+    });
+    genericOnlyEls.forEach((el) => {
+      el.hidden = isWoodwork;
+    });
+    if (siteCostsSection) siteCostsSection.hidden = !isSiteCosts;
+    if (btnAddEmptyItem) btnAddEmptyItem.disabled = isSiteCosts;
+    if (itemEditorContainer) itemEditorContainer.hidden = isSiteCosts;
+  }
+
+  function selectCategory(key) {
+    if (!CATEGORIES.some((c) => c.key === key)) return;
+    selectedCategoryKey = key;
+    selectedIndex = null;
+    if (itemEditor) itemEditor.value = "";
+    resetForm();
+    setFormModeForCategory();
+    renderItemsTable();
+    syncSiteCostsToUI();
+    updateGlobalHighlight();
+    updateFormHighlightsForSelected();
+  }
+
+  function renderCategoryTabs() {
+    if (!categoryTabs) return;
+    categoryTabs.innerHTML = "";
+    CATEGORIES.forEach((cat) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "tab-btn" + (cat.key === selectedCategoryKey ? " active" : "");
+      btn.textContent = cat.label;
+      btn.addEventListener("click", () => {
+        if (selectedCategoryKey === cat.key) return;
+        selectCategory(cat.key);
+        renderCategoryTabs();
+      });
+      categoryTabs.appendChild(btn);
+    });
+  }
+
   function buildStateSnapshot() {
     return {
       timestamp: new Date().toISOString(),
       basePayload: basePayload ? deepClone(basePayload) : null,
       currentPayload: currentPayload ? deepClone(currentPayload) : null,
       selectedIndex,
+      selectedCategoryKey,
       userChangedPathsCurrent: Array.from(userChangedPathsCurrent),
       userChangedPathsPrevious: Array.from(userChangedPathsPrevious),
       apiChangedPaths: Array.from(apiChangedPaths),
@@ -183,6 +256,7 @@ function updateSourceInfoUI() {
     basePayload = snap.basePayload ? deepClone(snap.basePayload) : null;
     currentPayload = snap.currentPayload ? deepClone(snap.currentPayload) : null;
     selectedIndex = typeof snap.selectedIndex === "number" ? snap.selectedIndex : null;
+    if (typeof snap.selectedCategoryKey === "string") selectedCategoryKey = snap.selectedCategoryKey;
 
     userChangedPathsCurrent = new Set(snap.userChangedPathsCurrent || []);
     userChangedPathsPrevious = new Set(snap.userChangedPathsPrevious || []);
@@ -190,13 +264,14 @@ function updateSourceInfoUI() {
 
     if (typeof snap.testMode === "boolean" && testModeToggle) testModeToggle.checked = snap.testMode;
 
-    // schema補正（v1.0.12）
+    // schema補正（v1.1.2）
     normalizePayloadForSchema(currentPayload);
     normalizePayloadForSchema(basePayload);
 
     // nlCorrectionGlobal の復元
     syncNlGlobalToUI();
     updateSourceInfoUI();
+    renderCategoryTabs();
 
     renderItemsTable();
     resetForm();
@@ -214,6 +289,7 @@ function updateSourceInfoUI() {
 
     updateGlobalHighlight();
     updateFormHighlightsForSelected();
+    setFormModeForCategory();
   }
 
   function restorePreviousState() {
@@ -381,12 +457,15 @@ function updateSourceInfoUI() {
     const wasteAmount = siteCostsWasteAmount ? toNum(siteCostsWasteAmount.value) : null;
 
     currentPayload.siteCosts.laborCost.amount = laborAmount ?? 0;
+    currentPayload.siteCosts.laborCost.currency = "JPY";
     currentPayload.siteCosts.laborCost.notes = (siteCostsLaborNotes && siteCostsLaborNotes.value) || "";
 
     currentPayload.siteCosts.transportCost.amount = transportAmount ?? 0;
+    currentPayload.siteCosts.transportCost.currency = "JPY";
     currentPayload.siteCosts.transportCost.notes = (siteCostsTransportNotes && siteCostsTransportNotes.value) || "";
 
     currentPayload.siteCosts.wasteDisposalCost.amount = wasteAmount ?? 0;
+    currentPayload.siteCosts.wasteDisposalCost.currency = "JPY";
     currentPayload.siteCosts.wasteDisposalCost.notes = (siteCostsWasteNotes && siteCostsWasteNotes.value) || "";
 
     if (basePayload && currentPayload) {
@@ -473,6 +552,7 @@ function updateSourceInfoUI() {
 
       syncNlGlobalToUI();
       renderCategoryTabs();
+      setFormModeForCategory();
       syncSiteCostsToUI();
       updateGlobalHighlight();
 
@@ -579,6 +659,7 @@ function updateSourceInfoUI() {
     html += `<strong>category:</strong> ${escapeHtml(catLabel)} / <strong>count:</strong> ${items.length}件</div>`;
 
     if (items.length > 0) {
+      const isWoodwork = selectedCategoryKey === "woodworkItems";
       html += `<table>`;
       html += `<thead><tr>
         <th>#</th>
@@ -590,37 +671,42 @@ function updateSourceInfoUI() {
         <th>仕上げ</th>
         <th>数量</th>
         <th>単価</th>
-        <th>材料費</th>
+        <th>費用/材料費</th>
         <th>人工合計(人日)</th>
         <th>source</th>
       </tr></thead><tbody>`;
 
       items.forEach((item, index) => {
         const name = item.name || "";
-        const structureType = (selectedCategoryKey === "woodworkItems" ? item.structureType : null) || item.type || item.structureType || "";
+        const structureType = isWoodwork ? (item.structureType || item.type || "") : "";
 
-        const dims = item.dimensions || {};
+        const dims = isWoodwork ? item.dimensions || {} : {};
         const dimParts = [];
         if (typeof dims.height === "number") dimParts.push(`H${dims.height}`);
         if (typeof dims.width === "number") dimParts.push(`W${dims.width}`);
         if (typeof dims.depth === "number") dimParts.push(`D${dims.depth}`);
         const dimStr = dimParts.join(" ");
 
-        const materials = Array.isArray(item.materials) ? item.materials : [];
+        const materials = isWoodwork && Array.isArray(item.materials) ? item.materials : [];
         const materialKinds = materials.map((m) => m && m.kind).filter((k) => !!k);
         const materialKindStr = materialKinds.join(", ");
 
-        const finishes = Array.isArray(item.finishes) ? item.finishes : [];
+        const finishes = isWoodwork && Array.isArray(item.finishes) ? item.finishes : [];
         const finishesStr = finishes.join(", ");
 
         const quantity = typeof item.quantity === "number" ? item.quantity : "";
 
         const unitPrice = item.price && typeof item.price.unitPrice === "number" ? item.price.unitPrice : "";
 
-        const materialCostAmount =
-          item.materialCost && typeof item.materialCost.amount === "number" ? item.materialCost.amount : "";
+        const materialCostAmount = isWoodwork
+          ? item.materialCost && typeof item.materialCost.amount === "number"
+            ? item.materialCost.amount
+            : ""
+          : item.cost && typeof item.cost.amount === "number"
+            ? item.cost.amount
+            : "";
 
-        const laborTotal = item.laborTotal || item.labor || null;
+        const laborTotal = isWoodwork ? item.laborTotal || item.labor || null : null;
         let laborTotalDays = "";
         if (laborTotal && typeof laborTotal.amount === "number") {
           if (laborTotal.unit === "人日") laborTotalDays = laborTotal.amount.toString();
@@ -638,14 +724,14 @@ function updateSourceInfoUI() {
         const basePath = `/${selectedCategoryKey}/${index}`;
         const clsInclude = highlightOn ? classForPathPrefix(`${basePath}/includeInEstimate`) : "";
         const clsName = highlightOn ? classForPathPrefix(`${basePath}/name`) : "";
-        const clsType = highlightOn ? classForPathPrefix(`${basePath}/${selectedCategoryKey === "woodworkItems" ? "structureType" : "type"}`) : "";
-        const clsDim = highlightOn ? classForPathPrefix(`${basePath}/dimensions`) : "";
-        const clsMat = highlightOn ? classForPathPrefix(`${basePath}/materials`) : "";
-        const clsFin = highlightOn ? classForPathPrefix(`${basePath}/finishes`) : "";
+        const clsType = highlightOn && isWoodwork ? classForPathPrefix(`${basePath}/structureType`) : "";
+        const clsDim = highlightOn && isWoodwork ? classForPathPrefix(`${basePath}/dimensions`) : "";
+        const clsMat = highlightOn && isWoodwork ? classForPathPrefix(`${basePath}/materials`) : "";
+        const clsFin = highlightOn && isWoodwork ? classForPathPrefix(`${basePath}/finishes`) : "";
         const clsQty = highlightOn ? classForPathPrefix(`${basePath}/quantity`) : "";
         const clsUnitPrice = highlightOn ? classForPathPrefix(`${basePath}/price/unitPrice`) : "";
-        const clsMatCost = highlightOn ? classForPathPrefix(`${basePath}/materialCost`) : "";
-        const clsLabor = highlightOn ? classForPathPrefix(`${basePath}/laborTotal`) : "";
+        const clsMatCost = highlightOn ? classForPathPrefix(`${basePath}/${isWoodwork ? "materialCost" : "cost"}`) : "";
+        const clsLabor = highlightOn && isWoodwork ? classForPathPrefix(`${basePath}/laborTotal`) : "";
         const clsSrc = highlightOn ? classForPathPrefix(`${basePath}/source`) : "";
 
         html += `<tr data-index="${index}" class="${rowClass}">
@@ -875,6 +961,8 @@ function updateSourceInfoUI() {
     if (itemFormMaterialCostNotes) itemFormMaterialCostNotes.value = "";
     if (itemFormLaborPerUnitDays) itemFormLaborPerUnitDays.value = "";
     if (itemFormLaborDays) itemFormLaborDays.value = "";
+    if (itemFormCostAmount) itemFormCostAmount.value = "";
+    if (itemFormCostNotes) itemFormCostNotes.value = "";
     if (itemFormNlCorrection) itemFormNlCorrection.value = "";
     if (itemFormIsBent) itemFormIsBent.checked = false;
     if (itemFormSpecialAngles) itemFormSpecialAngles.checked = false;
@@ -889,12 +977,14 @@ function updateSourceInfoUI() {
   function updateFormFromItem(item) {
     if (!item) return resetForm();
 
+    const isWoodwork = selectedCategoryKey === "woodworkItems";
+
     if (itemFormId) itemFormId.textContent = item.id || "-";
     if (itemFormInclude) itemFormInclude.checked = !!item.includeInEstimate;
     if (itemFormName) itemFormName.value = item.name || "";
 
     if (itemFormStructureType) {
-      itemFormStructureType.value = item.structureType || item.type || "";
+      itemFormStructureType.value = isWoodwork ? item.structureType || "" : "";
       if (
         itemFormStructureType.value &&
         !Array.from(itemFormStructureType.options).some((opt) => opt.value === itemFormStructureType.value)
@@ -903,7 +993,7 @@ function updateSourceInfoUI() {
       }
     }
 
-    const dims = item.dimensions || {};
+    const dims = isWoodwork ? item.dimensions || {} : {};
     if (itemFormDimH) itemFormDimH.value = typeof dims.height === "number" ? String(dims.height) : "";
     if (itemFormDimW) itemFormDimW.value = typeof dims.width === "number" ? String(dims.width) : "";
     if (itemFormDimD) itemFormDimD.value = typeof dims.depth === "number" ? String(dims.depth) : "";
@@ -911,7 +1001,7 @@ function updateSourceInfoUI() {
     if (itemFormQuantity) itemFormQuantity.value = typeof item.quantity === "number" ? String(item.quantity) : "";
 
     if (itemFormMaterials) {
-      const materials = Array.isArray(item.materials) ? item.materials : [];
+      const materials = isWoodwork && Array.isArray(item.materials) ? item.materials : [];
       const lines = materials
         .map((m) => {
           if (!m || !m.kind) return "";
@@ -923,7 +1013,7 @@ function updateSourceInfoUI() {
     }
 
     if (itemFormFinishes) {
-      const finishes = Array.isArray(item.finishes) ? item.finishes : [];
+      const finishes = isWoodwork && Array.isArray(item.finishes) ? item.finishes : [];
       itemFormFinishes.value = finishes.join("\n");
     }
 
@@ -932,11 +1022,11 @@ function updateSourceInfoUI() {
       itemFormPriceUnitPrice.value = up === "" ? "" : String(up);
     }
 
-    const mc = item.materialCost || null;
+    const mc = isWoodwork ? item.materialCost || null : null;
     if (itemFormMaterialCostAmount) itemFormMaterialCostAmount.value = mc && typeof mc.amount === "number" ? String(mc.amount) : "";
     if (itemFormMaterialCostNotes) itemFormMaterialCostNotes.value = mc?.notes || "";
 
-    const lp = item.laborPerUnit || null;
+    const lp = isWoodwork ? item.laborPerUnit || null : null;
     if (itemFormLaborPerUnitDays) {
       let daysStr = "";
       if (lp && typeof lp.amount === "number") {
@@ -946,7 +1036,7 @@ function updateSourceInfoUI() {
       itemFormLaborPerUnitDays.value = daysStr;
     }
 
-    const lt = item.laborTotal || item.labor || null;
+    const lt = isWoodwork ? item.laborTotal || item.labor || null : null;
     if (itemFormLaborDays) {
       let daysStr = "";
       if (lt && typeof lt.amount === "number") {
@@ -958,63 +1048,40 @@ function updateSourceInfoUI() {
 
     if (itemFormNlCorrection) itemFormNlCorrection.value = item.nlCorrection || "";
 
-    if (itemFormIsBent) itemFormIsBent.checked = !!item.isBent;
-    if (itemFormSpecialAngles) itemFormSpecialAngles.checked = !!item.hasSpecialAngles;
-    if (itemFormSupportHeavy) itemFormSupportHeavy.checked = !!item.supportsHeavyLoad;
+    if (itemFormIsBent) itemFormIsBent.checked = isWoodwork && !!item.isBent;
+    if (itemFormSpecialAngles) itemFormSpecialAngles.checked = isWoodwork && !!item.hasSpecialAngles;
+    if (itemFormSupportHeavy) itemFormSupportHeavy.checked = isWoodwork && !!item.supportsHeavyLoad;
 
-    const fsa = item.finishSurfaceArea || null;
+    const fsa = isWoodwork ? item.finishSurfaceArea || null : null;
     if (itemFormFinishAreaValue) itemFormFinishAreaValue.value = fsa && typeof fsa.value === "number" ? String(fsa.value) : "";
     if (itemFormFinishAreaNotes) itemFormFinishAreaNotes.value = fsa?.notes || "";
 
-    const lc = item.laborCoefficient || null;
+    const lc = isWoodwork ? item.laborCoefficient || null : null;
     if (itemFormLaborCoefValue) itemFormLaborCoefValue.value = lc && typeof lc.value === "number" ? String(lc.value) : "";
     if (itemFormLaborCoefNotes) itemFormLaborCoefNotes.value = lc?.notes || "";
+
+    const cost = !isWoodwork ? item.cost || null : null;
+    if (itemFormCostAmount) itemFormCostAmount.value = cost && typeof cost.amount === "number" ? String(cost.amount) : "";
+    if (itemFormCostNotes) itemFormCostNotes.value = cost?.notes || "";
   }
 
   function applyFormToItem(item, changedElement) {
     if (!item) return;
     const isChanged = (el) => !changedElement || changedElement === el;
+    const isWoodwork = selectedCategoryKey === "woodworkItems";
 
     if (itemFormInclude && isChanged(itemFormInclude)) item.includeInEstimate = !!itemFormInclude.checked;
     if (itemFormName && isChanged(itemFormName)) if (itemFormName.value !== "") item.name = itemFormName.value;
 
-    if (itemFormStructureType && isChanged(itemFormStructureType)) {
+    if (isWoodwork && itemFormStructureType && isChanged(itemFormStructureType)) {
       if (itemFormStructureType.value !== "") {
         const v = itemFormStructureType.value;
-        item.type = v;
-        if (selectedCategoryKey === "woodworkItems") {
-          item.structureType = v;
-
-          // 非木工へ切替時の整合性（木工カテゴリ内の特殊扱い）
-          if (v === "非木工造作物") {
-            item.classification = "非木工";
-            item.materials = null;
-            item.finishes = null;
-            item.finishSurfaceArea = null;
-            item.laborPerUnit = null;
-            item.laborTotal = null;
-            item.laborCoefficient = null;
-            item.materialCost = null;
-            item.laborCost = null;
-          } else {
-            item.classification = "木工";
-            if (item.materials == null) item.materials = [];
-            if (item.finishes == null) item.finishes = [];
-            if (item.finishSurfaceArea == null) item.finishSurfaceArea = { value: 0.01, notes: "" };
-            if (item.laborPerUnit == null) item.laborPerUnit = { amount: 0.01, unit: "人日", notes: "" };
-            if (item.laborTotal == null) item.laborTotal = { amount: 0.01, unit: "人日", notes: "" };
-            if (item.laborCoefficient == null) item.laborCoefficient = { value: 0.01, notes: "" };
-            if (item.materialCost == null) item.materialCost = { amount: 0, currency: "JPY", notes: "" };
-            if (item.laborCost == null) item.laborCost = { amount: 0, currency: "JPY", notes: "" };
-          }
-        } else {
-          // 非木工カテゴリでは structureType を持たない（スキーマ方針）
-          if ("structureType" in item) delete item.structureType;
-        }
+        item.structureType = v;
       }
     }
 
     if (
+      isWoodwork &&
       itemFormDimH &&
       itemFormDimW &&
       itemFormDimD &&
@@ -1031,12 +1098,12 @@ function updateSourceInfoUI() {
 
     if (itemFormQuantity && isChanged(itemFormQuantity)) {
       if (itemFormQuantity.value !== "") {
-        const q = parseInt(itemFormQuantity.value, 10);
+        const q = isWoodwork ? parseInt(itemFormQuantity.value, 10) : parseFloat(itemFormQuantity.value);
         if (!isNaN(q) && q > 0) item.quantity = q;
       }
     }
 
-    if (itemFormMaterials && isChanged(itemFormMaterials)) {
+    if (isWoodwork && itemFormMaterials && isChanged(itemFormMaterials)) {
       const lines = (itemFormMaterials.value || "")
         .split(/\r?\n/)
         .map((s) => s.trim())
@@ -1057,7 +1124,7 @@ function updateSourceInfoUI() {
         : [];
     }
 
-    if (itemFormFinishes && isChanged(itemFormFinishes)) {
+    if (isWoodwork && itemFormFinishes && isChanged(itemFormFinishes)) {
       const lines = (itemFormFinishes.value || "")
         .split(/\r?\n/)
         .map((s) => s.trim())
@@ -1076,8 +1143,9 @@ function updateSourceInfoUI() {
     }
 
     if (
-      (itemFormMaterialCostAmount && isChanged(itemFormMaterialCostAmount)) ||
-      (itemFormMaterialCostNotes && isChanged(itemFormMaterialCostNotes))
+      isWoodwork &&
+      ((itemFormMaterialCostAmount && isChanged(itemFormMaterialCostAmount)) ||
+        (itemFormMaterialCostNotes && isChanged(itemFormMaterialCostNotes)))
     ) {
       if (itemFormMaterialCostAmount && itemFormMaterialCostAmount.value !== "") {
         const amount = parseFloat(itemFormMaterialCostAmount.value);
@@ -1091,7 +1159,7 @@ function updateSourceInfoUI() {
       }
     }
 
-    if (itemFormLaborPerUnitDays && isChanged(itemFormLaborPerUnitDays)) {
+    if (isWoodwork && itemFormLaborPerUnitDays && isChanged(itemFormLaborPerUnitDays)) {
       if (itemFormLaborPerUnitDays.value !== "") {
         const days = parseFloat(itemFormLaborPerUnitDays.value);
         if (!isNaN(days)) {
@@ -1101,7 +1169,7 @@ function updateSourceInfoUI() {
       }
     }
 
-    if (itemFormLaborDays && isChanged(itemFormLaborDays)) {
+    if (isWoodwork && itemFormLaborDays && isChanged(itemFormLaborDays)) {
       if (itemFormLaborDays.value !== "") {
         const days = parseFloat(itemFormLaborDays.value);
         if (!isNaN(days)) {
@@ -1116,13 +1184,14 @@ function updateSourceInfoUI() {
       item.nlCorrection = itemFormNlCorrection.value || "";
     }
 
-    if (itemFormIsBent && isChanged(itemFormIsBent)) item.isBent = !!itemFormIsBent.checked;
-    if (itemFormSpecialAngles && isChanged(itemFormSpecialAngles)) item.hasSpecialAngles = !!itemFormSpecialAngles.checked;
-    if (itemFormSupportHeavy && isChanged(itemFormSupportHeavy)) item.supportsHeavyLoad = !!itemFormSupportHeavy.checked;
+    if (isWoodwork && itemFormIsBent && isChanged(itemFormIsBent)) item.isBent = !!itemFormIsBent.checked;
+    if (isWoodwork && itemFormSpecialAngles && isChanged(itemFormSpecialAngles)) item.hasSpecialAngles = !!itemFormSpecialAngles.checked;
+    if (isWoodwork && itemFormSupportHeavy && isChanged(itemFormSupportHeavy)) item.supportsHeavyLoad = !!itemFormSupportHeavy.checked;
 
     if (
-      (itemFormFinishAreaValue && isChanged(itemFormFinishAreaValue)) ||
-      (itemFormFinishAreaNotes && isChanged(itemFormFinishAreaNotes))
+      isWoodwork &&
+      ((itemFormFinishAreaValue && isChanged(itemFormFinishAreaValue)) ||
+        (itemFormFinishAreaNotes && isChanged(itemFormFinishAreaNotes)))
     ) {
       if (itemFormFinishAreaValue && itemFormFinishAreaValue.value !== "") {
         const v = parseFloat(itemFormFinishAreaValue.value);
@@ -1137,8 +1206,9 @@ function updateSourceInfoUI() {
     }
 
     if (
-      (itemFormLaborCoefValue && isChanged(itemFormLaborCoefValue)) ||
-      (itemFormLaborCoefNotes && isChanged(itemFormLaborCoefNotes))
+      isWoodwork &&
+      ((itemFormLaborCoefValue && isChanged(itemFormLaborCoefValue)) ||
+        (itemFormLaborCoefNotes && isChanged(itemFormLaborCoefNotes)))
     ) {
       if (itemFormLaborCoefValue && itemFormLaborCoefValue.value !== "") {
         const v = parseFloat(itemFormLaborCoefValue.value);
@@ -1149,6 +1219,22 @@ function updateSourceInfoUI() {
       } else if (itemFormLaborCoefNotes && itemFormLaborCoefNotes.value !== "") {
         if (!item.laborCoefficient) item.laborCoefficient = { value: 0, notes: itemFormLaborCoefNotes.value };
         else item.laborCoefficient.notes = itemFormLaborCoefNotes.value;
+      }
+    }
+
+    if (
+      !isWoodwork &&
+      ((itemFormCostAmount && isChanged(itemFormCostAmount)) || (itemFormCostNotes && isChanged(itemFormCostNotes)))
+    ) {
+      if (itemFormCostAmount && itemFormCostAmount.value !== "") {
+        const amount = parseFloat(itemFormCostAmount.value);
+        if (!isNaN(amount)) {
+          const notes = (itemFormCostNotes && itemFormCostNotes.value) || "";
+          item.cost = { amount, currency: "JPY", notes };
+        }
+      } else if (itemFormCostNotes && itemFormCostNotes.value !== "") {
+        if (!item.cost) item.cost = { amount: 0, currency: "JPY", notes: itemFormCostNotes.value };
+        else item.cost.notes = itemFormCostNotes.value;
       }
     }
   }
@@ -1170,6 +1256,8 @@ function updateSourceInfoUI() {
       itemFormMaterialCostNotes,
       itemFormLaborPerUnitDays,
       itemFormLaborDays,
+      itemFormCostAmount,
+      itemFormCostNotes,
       itemFormNlCorrection, // ★移動後も自動反映
       itemFormIsBent,
       itemFormSpecialAngles,
@@ -1238,6 +1326,8 @@ function updateSourceInfoUI() {
       itemFormMaterialCostNotes,
       itemFormLaborPerUnitDays,
       itemFormLaborDays,
+      itemFormCostAmount,
+      itemFormCostNotes,
       itemFormNlCorrection,
       itemFormIsBent,
       itemFormSpecialAngles,
@@ -1258,6 +1348,7 @@ function updateSourceInfoUI() {
     if (!isHighlightEnabled()) return;
     if (selectedIndex == null) return;
 
+    const isWoodwork = selectedCategoryKey === "woodworkItems";
     const idx = selectedIndex;
     const basePath = `/${selectedCategoryKey}/${idx}`;
     const apply = (el, prefix) => {
@@ -1271,27 +1362,38 @@ function updateSourceInfoUI() {
     apply(itemFormInclude, `${basePath}/includeInEstimate`);
     apply(itemFormName, `${basePath}/name`);
     // woodwork は structureType、それ以外は type を優先
-    apply(itemFormStructureType, `${basePath}/${selectedCategoryKey === "woodworkItems" ? "structureType" : "type"}`);
-    apply(itemFormDimH, `${basePath}/dimensions/height`);
-    apply(itemFormDimW, `${basePath}/dimensions/width`);
-    apply(itemFormDimD, `${basePath}/dimensions/depth`);
+    if (isWoodwork) apply(itemFormStructureType, `${basePath}/structureType`);
+    if (isWoodwork) {
+      apply(itemFormDimH, `${basePath}/dimensions/height`);
+      apply(itemFormDimW, `${basePath}/dimensions/width`);
+      apply(itemFormDimD, `${basePath}/dimensions/depth`);
+    }
     apply(itemFormQuantity, `${basePath}/quantity`);
-    apply(itemFormMaterials, `${basePath}/materials`);
-    apply(itemFormFinishes, `${basePath}/finishes`);
+    if (isWoodwork) {
+      apply(itemFormMaterials, `${basePath}/materials`);
+      apply(itemFormFinishes, `${basePath}/finishes`);
+    }
     apply(itemFormPriceUnitPrice, `${basePath}/price/unitPrice`);
-    apply(itemFormMaterialCostAmount, `${basePath}/materialCost`);
-    apply(itemFormMaterialCostNotes, `${basePath}/materialCost`);
-    apply(itemFormLaborPerUnitDays, `${basePath}/laborPerUnit`);
-    apply(itemFormLaborDays, `${basePath}/laborTotal`);
+    if (isWoodwork) {
+      apply(itemFormMaterialCostAmount, `${basePath}/materialCost`);
+      apply(itemFormMaterialCostNotes, `${basePath}/materialCost`);
+      apply(itemFormLaborPerUnitDays, `${basePath}/laborPerUnit`);
+      apply(itemFormLaborDays, `${basePath}/laborTotal`);
+    } else {
+      apply(itemFormCostAmount, `${basePath}/cost`);
+      apply(itemFormCostNotes, `${basePath}/cost`);
+    }
     apply(itemFormNlCorrection, `${basePath}/nlCorrection`);
 
-    apply(itemFormIsBent, `${basePath}/isBent`);
-    apply(itemFormSpecialAngles, `${basePath}/hasSpecialAngles`);
-    apply(itemFormSupportHeavy, `${basePath}/supportsHeavyLoad`);
-    apply(itemFormFinishAreaValue, `${basePath}/finishSurfaceArea`);
-    apply(itemFormFinishAreaNotes, `${basePath}/finishSurfaceArea`);
-    apply(itemFormLaborCoefValue, `${basePath}/laborCoefficient`);
-    apply(itemFormLaborCoefNotes, `${basePath}/laborCoefficient`);
+    if (isWoodwork) {
+      apply(itemFormIsBent, `${basePath}/isBent`);
+      apply(itemFormSpecialAngles, `${basePath}/hasSpecialAngles`);
+      apply(itemFormSupportHeavy, `${basePath}/supportsHeavyLoad`);
+      apply(itemFormFinishAreaValue, `${basePath}/finishSurfaceArea`);
+      apply(itemFormFinishAreaNotes, `${basePath}/finishSurfaceArea`);
+      apply(itemFormLaborCoefValue, `${basePath}/laborCoefficient`);
+      apply(itemFormLaborCoefNotes, `${basePath}/laborCoefficient`);
+    }
   }
 
   // JSON Patch（深いpath・1op1パラメータ）
@@ -1393,72 +1495,216 @@ function updateSourceInfoUI() {
   function normalizePayloadForSchema(payload) {
     if (!payload || typeof payload !== "object") return;
 
-    // version: 常に v1.1.2 に統一
     payload.version = SCHEMA_VERSION;
-
-    // nlCorrectionGlobal 必須
+    if (typeof payload.stage !== "string") payload.stage = "extraction";
+    if (payload.stage === "extract") payload.stage = "extraction";
+    if (payload.stage === "estimate") payload.stage = "ready_for_estimation";
+    if (typeof payload.extractedAt !== "string") payload.extractedAt = new Date().toISOString();
     if (typeof payload.nlCorrectionGlobal !== "string") payload.nlCorrectionGlobal = "";
 
-    // --- 旧形式の簡易移行 ---
-    // legacy: payload.items が存在し、カテゴリ配列が空なら finishingItems に移す
+    // legacy: upholsteryItems -> finishingItems
+    if (Array.isArray(payload.upholsteryItems) && !Array.isArray(payload.finishingItems)) {
+      payload.finishingItems = payload.upholsteryItems;
+    }
+    if ("upholsteryItems" in payload) delete payload.upholsteryItems;
+
+    const categoryKeys = ["woodworkItems", "floorItems", "finishingItems", "electricalItems", "leaseItems"];
+    const hasAnyCategoryArray = categoryKeys.some((k) => Array.isArray(payload[k]));
+
     if (Array.isArray(payload.items)) {
-      const hasAnyCategoryArray =
-        Array.isArray(payload.woodworkItems) ||
-        Array.isArray(payload.floorItems) ||
-        Array.isArray(payload.finishingItems) ||
-        Array.isArray(payload.electricalItems) ||
-        Array.isArray(payload.leaseItems);
       if (!hasAnyCategoryArray) {
-        payload.finishingItems = deepClone(payload.items);
+        const legacyWoodwork = [];
+        const legacyGeneric = [];
+        payload.items.forEach((it) => {
+          if (!it || typeof it !== "object") return;
+          const looksWoodwork =
+            (it.structureType && it.structureType !== "非木工造作物") ||
+            it.dimensions ||
+            it.materials ||
+            it.finishes ||
+            it.laborPerUnit ||
+            it.laborTotal ||
+            it.materialCost ||
+            it.laborCost;
+          if (looksWoodwork) legacyWoodwork.push(it);
+          else legacyGeneric.push(it);
+        });
+        payload.woodworkItems = legacyWoodwork;
+        payload.finishingItems = legacyGeneric;
       }
       delete payload.items;
     }
 
-    // カテゴリ配列の存在保証
-    for (const k of ["woodworkItems", "floorItems", "finishingItems", "electricalItems", "leaseItems"]) {
-      if (!Array.isArray(payload[k])) payload[k] = [];
+    if (Array.isArray(payload.laborItems)) {
+      payload.laborItems.forEach((it) => {
+        if (!it || typeof it !== "object") return;
+        const rawCat = it.category || it.targetCategory || it.target || "";
+        const normalized = String(rawCat).toLowerCase();
+        let dest = "finishingItems";
+        if (normalized.includes("floor")) dest = "floorItems";
+        else if (normalized.includes("finish") || normalized.includes("upholstery")) dest = "finishingItems";
+        else if (normalized.includes("electrical")) dest = "electricalItems";
+        else if (normalized.includes("lease")) dest = "leaseItems";
+        if (!Array.isArray(payload[dest])) payload[dest] = [];
+        payload[dest].push(it);
+      });
+      delete payload.laborItems;
     }
 
-    // siteCosts の存在保証（現場費はオブジェクト）
+    categoryKeys.forEach((k) => {
+      if (!Array.isArray(payload[k])) payload[k] = [];
+    });
+
     if (!payload.siteCosts || typeof payload.siteCosts !== "object" || Array.isArray(payload.siteCosts)) {
       payload.siteCosts = {};
     }
 
-    const ensureCost = (key) => {
-      if (!payload.siteCosts[key] || typeof payload.siteCosts[key] !== "object" || Array.isArray(payload.siteCosts[key])) {
-        payload.siteCosts[key] = {};
+    const ensureCost = (obj, key) => {
+      if (!obj[key] || typeof obj[key] !== "object" || Array.isArray(obj[key])) {
+        obj[key] = {};
       }
-      if (typeof payload.siteCosts[key].amount !== "number") payload.siteCosts[key].amount = 0;
-      if (typeof payload.siteCosts[key].currency !== "string") payload.siteCosts[key].currency = "JPY";
-      if (typeof payload.siteCosts[key].notes !== "string") payload.siteCosts[key].notes = "";
+      if (typeof obj[key].amount !== "number") obj[key].amount = 0;
+      if (typeof obj[key].currency !== "string") obj[key].currency = "JPY";
+      if (typeof obj[key].notes !== "string") obj[key].notes = "";
     };
-    ensureCost("laborCost");
-    ensureCost("transportCost");
-    ensureCost("wasteDisposalCost");
+    ensureCost(payload.siteCosts, "laborCost");
+    ensureCost(payload.siteCosts, "transportCost");
+    ensureCost(payload.siteCosts, "wasteDisposalCost");
+    if (typeof payload.siteCosts.notes !== "string") payload.siteCosts.notes = "";
 
-    // 各カテゴリ item の最低限整合（空追加後に壊れないため）
-    const normalizeItem = (it) => {
+    const normalizeBaseFields = (it) => {
       if (!it || typeof it !== "object") return;
       if (typeof it.id !== "string") it.id = "itm-000";
-      if (typeof it.source !== "string") it.source = "vision";
-      if (typeof it.includeInEstimate !== "boolean") it.includeInEstimate = true;
       if (typeof it.name !== "string") it.name = "";
+      if (typeof it.quantity !== "number" || it.quantity <= 0) it.quantity = 1;
+      if (typeof it.includeInEstimate !== "boolean") it.includeInEstimate = true;
       if (typeof it.nlCorrection !== "string") it.nlCorrection = "";
-      if (!it.dimensions || typeof it.dimensions !== "object") {
-        it.dimensions = { height: 1, width: 1, depth: 1, unit: "mm" };
-      } else {
-        if (typeof it.dimensions.unit !== "string") it.dimensions.unit = "mm";
+      if (typeof it.source === "string") {
+        const s = it.source.toLowerCase();
+        if (s === "chatgpt") it.source = "chatGPT";
+        else if (s === "user") it.source = "user";
       }
-      if (typeof it.boundingBoxVolume !== "number") it.boundingBoxVolume = 0;
+      if (it.source !== "chatGPT" && it.source !== "user") it.source = "chatGPT";
       if (!it.price || typeof it.price !== "object") it.price = { mode: "estimate_by_model", currency: "JPY", unitPrice: null, notes: "" };
-      if (typeof it.price.currency !== "string") it.price.currency = "JPY";
       if (typeof it.price.mode !== "string") it.price.mode = "estimate_by_model";
+      if (typeof it.price.currency !== "string") it.price.currency = "JPY";
+      if (!("unitPrice" in it.price)) it.price.unitPrice = null;
       if (typeof it.price.notes !== "string") it.price.notes = "";
+      if (typeof it.notes !== "string") it.notes = "";
+
+      if (typeof it.unitPrice === "number" && (it.price.unitPrice == null || isNaN(it.price.unitPrice))) {
+        it.price.unitPrice = it.unitPrice;
+      }
+      if ("unitPrice" in it) delete it.unitPrice;
     };
 
-    for (const k of ["woodworkItems", "floorItems", "finishingItems", "electricalItems", "leaseItems"]) {
-      payload[k].forEach(normalizeItem);
-    }
+    const normalizeWoodworkItem = (it) => {
+      if (!it || typeof it !== "object") return;
+      normalizeBaseFields(it);
+
+      if (typeof it.structureType !== "string") {
+        it.structureType = typeof it.type === "string" ? it.type : "単純什器";
+      }
+      if ("type" in it) delete it.type;
+      if ("classification" in it) delete it.classification;
+      if (!Number.isInteger(it.quantity) || it.quantity < 1) it.quantity = 1;
+
+      const toPositive = (v) => (typeof v === "number" && v > 0 ? v : 1);
+      if (!it.dimensions || typeof it.dimensions !== "object") it.dimensions = {};
+      it.dimensions.height = toPositive(it.dimensions.height);
+      it.dimensions.width = toPositive(it.dimensions.width);
+      it.dimensions.depth = toPositive(it.dimensions.depth);
+      if (typeof it.dimensions.unit !== "string") it.dimensions.unit = "mm";
+
+      if (!Array.isArray(it.materials)) it.materials = [];
+      if (!Array.isArray(it.finishes)) it.finishes = [];
+
+      if (!it.finishSurfaceArea || typeof it.finishSurfaceArea !== "object") it.finishSurfaceArea = {};
+      if (typeof it.finishSurfaceArea.value !== "number") it.finishSurfaceArea.value = 0.01;
+      if (typeof it.finishSurfaceArea.notes !== "string") it.finishSurfaceArea.notes = "";
+
+      if (typeof it.isBent !== "boolean") it.isBent = false;
+      if (typeof it.hasSpecialAngles !== "boolean") it.hasSpecialAngles = false;
+      if (typeof it.supportsHeavyLoad !== "boolean") it.supportsHeavyLoad = false;
+      if (typeof it.outlineDescription !== "string") it.outlineDescription = "";
+
+      const ensureLabor = (key) => {
+        if (!it[key] || typeof it[key] !== "object") it[key] = {};
+        if (typeof it[key].amount !== "number") it[key].amount = 0.01;
+        if (typeof it[key].unit !== "string") it[key].unit = "人日";
+        if (typeof it[key].notes !== "string") it[key].notes = "";
+      };
+      ensureLabor("laborPerUnit");
+      ensureLabor("laborTotal");
+
+      if (!it.laborCoefficient || typeof it.laborCoefficient !== "object") it.laborCoefficient = {};
+      if (typeof it.laborCoefficient.value !== "number") it.laborCoefficient.value = 0.01;
+      if (typeof it.laborCoefficient.notes !== "string") it.laborCoefficient.notes = "";
+
+      if (typeof it.boundingBoxVolume !== "number") {
+        const h = it.dimensions.height / 1000;
+        const w = it.dimensions.width / 1000;
+        const d = it.dimensions.depth / 1000;
+        it.boundingBoxVolume = h * w * d;
+      }
+
+      ensureCost(it, "materialCost");
+      ensureCost(it, "laborCost");
+
+      if (typeof it.recognitionConfidence !== "number") it.recognitionConfidence = 1;
+      if ("cost" in it) delete it.cost;
+    };
+
+    const normalizeQuantifiedItem = (it) => {
+      if (!it || typeof it !== "object") return;
+      normalizeBaseFields(it);
+
+      if (!it.cost || typeof it.cost !== "object") {
+        const mat = it.materialCost?.amount || 0;
+        const labor = it.laborCost?.amount || 0;
+        it.cost = { amount: mat + labor, currency: "JPY", notes: "" };
+      }
+      ensureCost(it, "cost");
+      if (typeof it.unit !== "string") it.unit = "式";
+
+      const removeKeys = [
+        "structureType",
+        "dimensions",
+        "materials",
+        "finishes",
+        "finishSurfaceArea",
+        "isBent",
+        "hasSpecialAngles",
+        "supportsHeavyLoad",
+        "outlineDescription",
+        "laborPerUnit",
+        "laborTotal",
+        "laborCoefficient",
+        "boundingBoxVolume",
+        "materialCost",
+        "laborCost",
+        "recognitionConfidence",
+        "classification",
+        "type"
+      ];
+      removeKeys.forEach((k) => {
+        if (k in it) delete it[k];
+      });
+    };
+
+    const normalizeElectricalItem = (it) => {
+      if (!it || typeof it !== "object") return;
+      normalizeQuantifiedItem(it);
+      if (typeof it.electricalType !== "string") it.electricalType = "other";
+      if (typeof it.isHighPlace !== "boolean") it.isHighPlace = false;
+      if (!("spec" in it)) it.spec = null;
+    };
+
+    payload.woodworkItems.forEach(normalizeWoodworkItem);
+    ["floorItems", "finishingItems", "leaseItems"].forEach((k) => {
+      payload[k].forEach(normalizeQuantifiedItem);
+    });
+    payload.electricalItems.forEach(normalizeElectricalItem);
   }
 
   // ===== 空 item 生成 =====
@@ -1483,9 +1729,7 @@ function updateSourceInfoUI() {
     // ここでは "壊れにくい最小セット" を基本として、木工だけ拡張する。
     const base = {
       id,
-      type: "",
       name: "",
-      dimensions: { height: h, width: w, depth: d, unit: "mm" },
       quantity: 1,
       includeInEstimate: true,
       price: { mode: "estimate_by_model", currency: "JPY", unitPrice: null, notes: "" },
@@ -1498,7 +1742,7 @@ function updateSourceInfoUI() {
       return {
         ...base,
         structureType: "単純什器",
-        type: "単純什器",
+        dimensions: { height: h, width: w, depth: d, unit: "mm" },
         materials: [],
         finishes: [],
         finishSurfaceArea: { value: 0.01, notes: "" },
@@ -1506,7 +1750,6 @@ function updateSourceInfoUI() {
         hasSpecialAngles: false,
         supportsHeavyLoad: false,
         outlineDescription: "",
-        classification: "木工",
         recognitionConfidence: 1,
         laborPerUnit: { amount: 0.01, unit: "人日", notes: "" },
         laborTotal: { amount: 0.01, unit: "人日", notes: "" },
@@ -1517,9 +1760,22 @@ function updateSourceInfoUI() {
       };
     }
 
-    // 非木工カテゴリは type のみデフォルトを入れる
-    base.type = "";
-    return base;
+    if (categoryKey === "electricalItems") {
+      return {
+        ...base,
+        unit: "式",
+        electricalType: "other",
+        isHighPlace: false,
+        spec: null,
+        cost: { amount: 0, currency: "JPY", notes: "" }
+      };
+    }
+
+    return {
+      ...base,
+      unit: "式",
+      cost: { amount: 0, currency: "JPY", notes: "" }
+    };
   }
 
   // 初期表示
@@ -1527,6 +1783,7 @@ function updateSourceInfoUI() {
   updateSourceInfoUI();
   updateGlobalHighlight();
   renderCategoryTabs();
+  setFormModeForCategory();
   syncSiteCostsToUI();
   renderItemsTable();
 });

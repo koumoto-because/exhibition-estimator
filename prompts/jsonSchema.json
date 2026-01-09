@@ -17,11 +17,8 @@
     "siteCosts"
   ],
   "properties": {
-    "version": { "type": "string", "default": "1.1.2" },
-    "stage": {
-      "type": "string",
-      "enum": ["extraction", "review", "ready_for_estimation"]
-    },
+    "version": { "type": "string", "default": "1.1.5" },
+    "stage": { "type": "string", "enum": ["extraction", "review", "ready_for_estimation"] },
     "extractedAt": { "type": "string", "format": "date-time" },
 
     "sourceDocument": {
@@ -35,40 +32,38 @@
       }
     },
 
-    "nlCorrectionGlobal": {
-      "type": "string",
-      "description": "抽出全体に対する自然言語の修正指示"
-    },
+    "nlCorrectionGlobal": { "type": "string" },
 
     "woodworkItems": {
       "type": "array",
-      "description": "木工造作物（従来itemsの木工相当）",
       "items": { "$ref": "#/$defs/woodworkItem" }
     },
+
     "floorItems": {
       "type": "array",
-      "description": "床",
-      "items": { "$ref": "#/$defs/genericCostItem" }
+      "description": "床（材料/施工/人工などを同一配列内の別項目として保持可能）",
+      "items": { "$ref": "#/$defs/quantifiedCostItem" }
     },
+
     "finishingItems": {
       "type": "array",
-      "description": "表装（旧: upholsteryItems）",
-      "items": { "$ref": "#/$defs/genericCostItem" }
+      "description": "表装（材料/施工/人工などを同一配列内の別項目として保持可能）",
+      "items": { "$ref": "#/$defs/quantifiedCostItem" }
     },
+
     "electricalItems": {
       "type": "array",
-      "description": "電気",
-      "items": { "$ref": "#/$defs/genericCostItem" }
+      "description": "電気（器具/配線/人工などを同一配列内の別項目として保持可能）",
+      "items": { "$ref": "#/$defs/quantifiedElectricalItem" }
     },
+
     "leaseItems": {
       "type": "array",
-      "description": "リース",
-      "items": { "$ref": "#/$defs/genericCostItem" }
+      "items": { "$ref": "#/$defs/leaseItem" }
     },
 
     "siteCosts": {
       "type": "object",
-      "description": "現場費（構造物ではないが積算に含める費目）",
       "additionalProperties": false,
       "required": ["laborCost", "transportCost", "wasteDisposalCost"],
       "properties": {
@@ -83,8 +78,130 @@
   "$defs": {
     "sourceKind": {
       "type": "string",
-      "enum": ["chatGPT", "user"],
-      "description": "chatGPT=API抽出 / user=ユーザー追記"
+      "enum": ["chatGPT", "user"]
+    },
+
+    "costAmountWithNotes": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["amount", "currency"],
+      "properties": {
+        "amount": { "type": "number", "minimum": 0 },
+        "currency": { "type": "string", "default": "JPY" },
+        "notes": { "type": "string" }
+      }
+    },
+
+    "priceInstruction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode"],
+      "properties": {
+        "mode": { "type": "string", "enum": ["estimate_by_model", "override_fixed"] },
+        "currency": { "type": "string", "default": "JPY" },
+        "unitPrice": {
+          "type": ["number", "null"],
+          "minimum": 0,
+          "description": "単価（override_fixed の場合は基本的に数値、estimate_by_model の場合は null も可）"
+        },
+        "notes": { "type": "string" }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "mode": { "const": "override_fixed" } } },
+          "then": { "required": ["unitPrice"] }
+        }
+      ]
+    },
+
+    "baseItemFields": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name", "includeInEstimate", "price", "nlCorrection", "source"],
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "includeInEstimate": { "type": "boolean" },
+        "price": { "$ref": "#/$defs/priceInstruction" },
+        "nlCorrection": { "type": "string" },
+        "source": { "$ref": "#/$defs/sourceKind" },
+        "notes": { "type": "string" }
+      }
+    },
+
+    "quantityUnit": {
+      "type": "string",
+      "enum": ["個", "台", "式", "m", "m²", "m³", "本", "枚", "人時", "人日"],
+      "description": "数量の単位（床/表装/電気/人工まで同じ仕組みで扱う）"
+    },
+
+    "quantifiedCostItem": {
+      "allOf": [
+        { "$ref": "#/$defs/baseItemFields" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["quantity", "unit", "cost"],
+          "properties": {
+            "quantity": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "description": "数量（人工の場合も quantity=工数として使用可）"
+            },
+            "unit": { "$ref": "#/$defs/quantityUnit" },
+            "cost": {
+              "$ref": "#/$defs/costAmountWithNotes",
+              "description": "小計（quantity×price.unitPrice の結果や固定金額を格納）"
+            }
+          }
+        }
+      ],
+      "description": "床/表装向け：数量・単位・単価（price.unitPrice）で表現する汎用アイテム（人工も同一形式で保持）"
+    },
+
+    "electricalType": {
+      "type": "string",
+      "enum": ["lighting", "panelboard", "outlet", "wiring", "switch", "labor", "other"],
+      "description": "電気の種別。人工は labor として同一配列内に保持可能。"
+    },
+
+    "electricalSpec": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "voltageV": { "type": ["number", "null"], "minimum": 0 },
+        "wattW": { "type": ["number", "null"], "minimum": 0 },
+        "phase": { "type": ["string", "null"], "enum": ["single", "three", null] },
+        "breakerA": { "type": ["number", "null"], "minimum": 0 },
+        "notes": { "type": "string" }
+      }
+    },
+
+    "quantifiedElectricalItem": {
+      "allOf": [
+        { "$ref": "#/$defs/quantifiedCostItem" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["electricalType", "isHighPlace"],
+          "properties": {
+            "electricalType": { "$ref": "#/$defs/electricalType" },
+            "isHighPlace": { "type": "boolean" },
+            "spec": {
+              "type": ["object", "null"],
+              "description": "照明/分電盤の電気的スペック（分類用）",
+              "allOf": [{ "$ref": "#/$defs/electricalSpec" }]
+            }
+          },
+          "allOf": [
+            {
+              "if": { "properties": { "electricalType": { "enum": ["lighting", "panelboard"] } } },
+              "then": { "required": ["spec"] }
+            }
+          ]
+        }
+      ],
+      "description": "電気向け：数量・単位・単価（price.unitPrice）で表現しつつ、高所フラグとスペック分類を持つ"
     },
 
     "structureType": {
@@ -99,8 +216,7 @@
         "梁",
         "特大造作物",
         "複雑造作物"
-      ],
-      "description": "木工造作物の詳細分類"
+      ]
     },
 
     "dimensionHWD": {
@@ -112,37 +228,6 @@
         "width": { "type": "number", "exclusiveMinimum": 0 },
         "depth": { "type": "number", "exclusiveMinimum": 0 },
         "unit": { "type": "string", "enum": ["mm", "cm", "m"], "default": "mm" }
-      }
-    },
-
-    "surfaceAreaWithNotes": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["value"],
-      "properties": {
-        "value": { "type": "number", "exclusiveMinimum": 0 },
-        "notes": { "type": "string" }
-      }
-    },
-
-    "coefficientWithNotes": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["value"],
-      "properties": {
-        "value": { "type": "number", "exclusiveMinimum": 0 },
-        "notes": { "type": "string" }
-      }
-    },
-
-    "costAmountWithNotes": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["amount", "currency"],
-      "properties": {
-        "amount": { "type": "number", "minimum": 0 },
-        "currency": { "type": "string", "default": "JPY" },
-        "notes": { "type": "string" }
       }
     },
 
@@ -168,14 +253,22 @@
       }
     },
 
-    "priceInstruction": {
+    "surfaceAreaWithNotes": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["mode"],
+      "required": ["value"],
       "properties": {
-        "mode": { "type": "string", "enum": ["estimate_by_model", "override_fixed"] },
-        "currency": { "type": "string", "default": "JPY" },
-        "unitPrice": { "type": ["number", "null"] },
+        "value": { "type": "number", "exclusiveMinimum": 0 },
+        "notes": { "type": "string" }
+      }
+    },
+
+    "coefficientWithNotes": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["value"],
+      "properties": {
+        "value": { "type": "number", "exclusiveMinimum": 0 },
         "notes": { "type": "string" }
       }
     },
@@ -191,37 +284,6 @@
       }
     },
 
-    "baseItemFields": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["id", "name", "quantity", "includeInEstimate", "price", "nlCorrection", "source"],
-      "properties": {
-        "id": { "type": "string" },
-        "name": { "type": "string" },
-        "quantity": { "type": "integer", "minimum": 1 },
-        "includeInEstimate": { "type": "boolean" },
-        "price": { "$ref": "#/$defs/priceInstruction" },
-        "nlCorrection": { "type": "string" },
-        "source": { "$ref": "#/$defs/sourceKind" },
-        "notes": { "type": "string" }
-      }
-    },
-
-    "genericCostItem": {
-      "allOf": [
-        { "$ref": "#/$defs/baseItemFields" },
-        {
-          "type": "object",
-          "additionalProperties": false,
-          "required": ["cost"],
-          "properties": {
-            "cost": { "$ref": "#/$defs/costAmountWithNotes" }
-          }
-        }
-      ],
-      "description": "床/表装/電気/リース向けの汎用積算項目"
-    },
-
     "woodworkItem": {
       "allOf": [
         { "$ref": "#/$defs/baseItemFields" },
@@ -229,6 +291,7 @@
           "type": "object",
           "additionalProperties": false,
           "required": [
+            "quantity",
             "structureType",
             "dimensions",
             "materials",
@@ -246,32 +309,48 @@
             "laborCost"
           ],
           "properties": {
+            "quantity": { "type": "integer", "minimum": 1 },
             "structureType": { "$ref": "#/$defs/structureType" },
             "dimensions": { "$ref": "#/$defs/dimensionHWD" },
-            "materials": {
-              "type": "array",
-              "items": { "$ref": "#/$defs/materialSpec" }
-            },
-            "finishes": {
-              "type": "array",
-              "items": { "$ref": "#/$defs/finishKind" }
-            },
+
+            "materials": { "type": "array", "items": { "$ref": "#/$defs/materialSpec" } },
+            "finishes": { "type": "array", "items": { "$ref": "#/$defs/finishKind" } },
             "finishSurfaceArea": { "$ref": "#/$defs/surfaceAreaWithNotes" },
+
             "isBent": { "type": "boolean" },
             "hasSpecialAngles": { "type": "boolean" },
             "supportsHeavyLoad": { "type": "boolean" },
             "outlineDescription": { "type": "string" },
+
             "laborPerUnit": { "$ref": "#/$defs/laborSpec" },
             "laborTotal": { "$ref": "#/$defs/laborSpec" },
             "laborCoefficient": { "$ref": "#/$defs/coefficientWithNotes" },
+
             "boundingBoxVolume": { "type": "number", "minimum": 0 },
+
             "materialCost": { "$ref": "#/$defs/costAmountWithNotes" },
             "laborCost": { "$ref": "#/$defs/costAmountWithNotes" },
+
             "recognitionConfidence": { "type": "number", "minimum": 0, "maximum": 1 }
           }
         }
-      ],
-      "description": "木工造作物（従来のstructureTypeを保持）"
+      ]
+    },
+
+    "leaseItem": {
+      "allOf": [
+        { "$ref": "#/$defs/baseItemFields" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["quantity", "unit", "cost"],
+          "properties": {
+            "quantity": { "type": "number", "exclusiveMinimum": 0 },
+            "unit": { "$ref": "#/$defs/quantityUnit" },
+            "cost": { "$ref": "#/$defs/costAmountWithNotes" }
+          }
+        }
+      ]
     }
   }
 }

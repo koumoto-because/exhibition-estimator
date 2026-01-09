@@ -33,3 +33,9 @@ MUST verify in UI:
 
 MUST NOT:
 - Add node_modules/ or dist/ to git
+
+## Reporting
+After verification, Codex MUST report:
+- npm ci / npm run build result (success or error)
+- npm start result (window opened or error)
+- Any deviation from expected UI behavior
