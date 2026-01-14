@@ -448,6 +448,25 @@ function updateSourceInfoUI() {
   if (btnRestoreState) btnRestoreState.addEventListener("click", restorePreviousState);
   if (btnRedoState) btnRedoState.addEventListener("click", redoState);
 
+  // キーボードショートカット: Undo/Redo
+  document.addEventListener("keydown", (event) => {
+    const isMac = navigator.platform && navigator.platform.toLowerCase().includes("mac");
+    const isUndoKey = (isMac ? event.metaKey : event.ctrlKey) && event.key.toLowerCase() === "z";
+    if (!isUndoKey) return;
+
+    const target = event.target;
+    const isEditable =
+      target &&
+      ((target.tagName === "INPUT" && target.type !== "checkbox") ||
+        target.tagName === "TEXTAREA" ||
+        target.isContentEditable);
+    if (isEditable) return;
+
+    event.preventDefault();
+    if (event.shiftKey) redoState();
+    else restorePreviousState();
+  });
+
   // プロンプト読込
   if (btnLoadPrompt && stageSelect && promptTextarea) {
     btnLoadPrompt.addEventListener("click", async () => {
@@ -1374,33 +1393,41 @@ function updateSourceInfoUI() {
 
         const rowClass = index === selectedIndex ? "selected" : "";
         const highlightOn = isHighlightEnabled();
+        let highlightOnRow = highlightOn;
+        if (highlightOn && basePayload && Array.isArray(basePayload[selectedCategoryKey]) && item && item.id) {
+          const baseItems = basePayload[selectedCategoryKey];
+          const baseIndex = baseItems.findIndex((b) => b && b.id === item.id);
+          if (baseIndex !== -1 && baseIndex !== index) {
+            highlightOnRow = false;
+          }
+        }
 
         const basePath = `/${selectedCategoryKey}/${index}`;
-        const clsInclude = highlightOn ? classForPathPrefix(`${basePath}/includeInEstimate`) : "";
-        const clsName = highlightOn ? classForPathPrefix(`${basePath}/name`) : "";
-        const clsType = highlightOn
+        const clsInclude = highlightOnRow ? classForPathPrefix(`${basePath}/includeInEstimate`) : "";
+        const clsName = highlightOnRow ? classForPathPrefix(`${basePath}/name`) : "";
+        const clsType = highlightOnRow
           ? isWoodwork
             ? classForPathPrefix(`${basePath}/structureType`)
             : isElectrical
               ? classForPathPrefix(`${basePath}/electricalType`)
               : ""
           : "";
-        const clsDim = highlightOn
+        const clsDim = highlightOnRow
           ? isWoodwork
             ? classForPathPrefix(`${basePath}/dimensions`)
             : isElectrical
               ? classForPathPrefix(`${basePath}/spec`)
               : ""
           : "";
-        const clsMat = highlightOn && isWoodwork ? classForPathPrefix(`${basePath}/materials`) : "";
-        const clsFin = highlightOn && isWoodwork ? classForPathPrefix(`${basePath}/finishes`) : "";
-        const clsQty = highlightOn ? classForPathPrefix(`${basePath}/quantity`) : "";
-        const clsUnitPrice = highlightOn ? classForPathPrefix(`${basePath}/price/unitPrice`) : "";
-        const clsMatCost = highlightOn ? classForPathPrefix(`${basePath}/${isWoodwork ? "materialCost" : "cost"}`) : "";
-        const clsLaborCost = highlightOn && isWoodwork ? classForPathPrefix(`${basePath}/laborCost`) : "";
-        const clsTotal = highlightOn ? classForPathPrefix(`${basePath}/price`) : "";
-        const clsLabor = highlightOn && isWoodwork ? classForPathPrefix(`${basePath}/laborTotal`) : "";
-        const clsSrc = highlightOn ? classForPathPrefix(`${basePath}/source`) : "";
+        const clsMat = highlightOnRow && isWoodwork ? classForPathPrefix(`${basePath}/materials`) : "";
+        const clsFin = highlightOnRow && isWoodwork ? classForPathPrefix(`${basePath}/finishes`) : "";
+        const clsQty = highlightOnRow ? classForPathPrefix(`${basePath}/quantity`) : "";
+        const clsUnitPrice = highlightOnRow ? classForPathPrefix(`${basePath}/price/unitPrice`) : "";
+        const clsMatCost = highlightOnRow ? classForPathPrefix(`${basePath}/${isWoodwork ? "materialCost" : "cost"}`) : "";
+        const clsLaborCost = highlightOnRow && isWoodwork ? classForPathPrefix(`${basePath}/laborCost`) : "";
+        const clsTotal = highlightOnRow ? classForPathPrefix(`${basePath}/price`) : "";
+        const clsLabor = highlightOnRow && isWoodwork ? classForPathPrefix(`${basePath}/laborTotal`) : "";
+        const clsSrc = highlightOnRow ? classForPathPrefix(`${basePath}/source`) : "";
 
         if (isWoodwork) {
           html += `<tr data-index="${index}" class="${rowClass}">
@@ -2102,14 +2129,18 @@ function updateSourceInfoUI() {
   if (itemFormMaterialsAdd) {
     itemFormMaterialsAdd.addEventListener("click", () => {
       if (!itemFormMaterialsList) return;
+      if (currentPayload && selectedCategoryKey === "woodworkItems") pushStateHistory(true);
       itemFormMaterialsList.appendChild(createMaterialRow({ kind: "", spec: "", quantity: 1, unit: "" }));
+      applyMaterialsFromUI();
     });
   }
 
   if (itemFormFinishesAdd) {
     itemFormFinishesAdd.addEventListener("click", () => {
       if (!itemFormFinishesList) return;
+      if (currentPayload && selectedCategoryKey === "woodworkItems") pushStateHistory(true);
       itemFormFinishesList.appendChild(createFinishRow({ kind: "", spec: "", surfaceAreaValue: null, surfaceAreaUnit: "" }));
+      applyFinishesFromUI();
     });
   }
 
@@ -2117,9 +2148,10 @@ function updateSourceInfoUI() {
     itemFormMaterialsList.addEventListener("click", (e) => {
       const btn = e.target.closest("button[data-action=\"remove-material\"]");
       if (!btn) return;
-    const row = btn.closest("[data-material-row]");
-    if (row) row.remove();
-    applyMaterialsFromUI();
+      if (currentPayload && selectedCategoryKey === "woodworkItems") pushStateHistory(true);
+      const row = btn.closest("[data-material-row]");
+      if (row) row.remove();
+      applyMaterialsFromUI();
     });
     itemFormMaterialsList.addEventListener("input", applyMaterialsFromUI);
     itemFormMaterialsList.addEventListener("change", applyMaterialsFromUI);
@@ -2129,9 +2161,10 @@ function updateSourceInfoUI() {
     itemFormFinishesList.addEventListener("click", (e) => {
       const btn = e.target.closest("button[data-action=\"remove-finish\"]");
       if (!btn) return;
-    const row = btn.closest("[data-finish-row]");
-    if (row) row.remove();
-    applyFinishesFromUI();
+      if (currentPayload && selectedCategoryKey === "woodworkItems") pushStateHistory(true);
+      const row = btn.closest("[data-finish-row]");
+      if (row) row.remove();
+      applyFinishesFromUI();
     });
     itemFormFinishesList.addEventListener("input", applyFinishesFromUI);
     itemFormFinishesList.addEventListener("change", applyFinishesFromUI);
@@ -2192,6 +2225,16 @@ function updateSourceInfoUI() {
       if (!el) return;
       el.classList.remove("user-changed-current", "user-changed-previous", "api-changed");
     });
+    if (itemFormMaterialsList) {
+      itemFormMaterialsList.querySelectorAll("[data-field]").forEach((el) => {
+        el.classList.remove("user-changed-current", "user-changed-previous", "api-changed");
+      });
+    }
+    if (itemFormFinishesList) {
+      itemFormFinishesList.querySelectorAll("[data-field]").forEach((el) => {
+        el.classList.remove("user-changed-current", "user-changed-previous", "api-changed");
+      });
+    }
   }
 
   function updateFormHighlightsForSelected() {
@@ -2223,18 +2266,67 @@ function updateSourceInfoUI() {
     apply(itemFormQuantity, `${basePath}/quantity`);
     if (!isWoodwork) apply(itemFormUnit, `${basePath}/unit`);
     if (isWoodwork) {
+      const baseItem = basePayload && basePayload[selectedCategoryKey] && basePayload[selectedCategoryKey][idx];
+      const baseMaterials = Array.isArray(baseItem?.materials) ? baseItem.materials : [];
+      const baseFinishes = Array.isArray(baseItem?.finishes) ? baseItem.finishes : [];
+      const currItem = currentPayload && currentPayload[selectedCategoryKey] && currentPayload[selectedCategoryKey][idx];
+      const currMaterials = Array.isArray(currItem?.materials) ? currItem.materials : [];
+      const currFinishes = Array.isArray(currItem?.finishes) ? currItem.finishes : [];
+
+      const materialEquals = (a, b) => {
+        if (!a || !b) return false;
+        if (typeof a === "string" || typeof b === "string") return String(a) === String(b);
+        return (
+          (a.kind || "") === (b.kind || "") &&
+          (a.spec || "") === (b.spec || "") &&
+          (typeof a.quantity === "number" ? a.quantity : null) === (typeof b.quantity === "number" ? b.quantity : null) &&
+          (a.unit || "") === (b.unit || "")
+        );
+      };
+
+      const finishEquals = (a, b) => {
+        if (!a || !b) return false;
+        if (typeof a === "string" || typeof b === "string") return String(a) === String(b);
+        const aArea = a.surfaceArea || {};
+        const bArea = b.surfaceArea || {};
+        return (
+          (a.kind || "") === (b.kind || "") &&
+          (a.spec || "") === (b.spec || "") &&
+          (typeof aArea.value === "number" ? aArea.value : null) === (typeof bArea.value === "number" ? bArea.value : null) &&
+          (aArea.unit || "") === (bArea.unit || "")
+        );
+      };
+
+      const findMatchIndex = (list, entry, eqFn) => {
+        for (let i = 0; i < list.length; i++) {
+          if (eqFn(list[i], entry)) return i;
+        }
+        return -1;
+      };
+
       if (itemFormMaterialsList) {
         itemFormMaterialsList.querySelectorAll("[data-material-row]").forEach((row) => {
           const idx = row.dataset.index;
           if (typeof idx !== "string") return;
+          const rowIndex = parseInt(idx, 10);
+          if (!Number.isFinite(rowIndex)) return;
+          const currEntry = currMaterials[rowIndex];
+          const matchIndex = currEntry ? findMatchIndex(baseMaterials, currEntry, materialEquals) : -1;
+          const isShifted = matchIndex !== -1 && matchIndex !== rowIndex;
+          const isAdded = rowIndex >= baseMaterials.length;
           row.querySelectorAll("[data-field]").forEach((fieldEl) => {
             fieldEl.classList.remove("user-changed-current", "user-changed-previous", "api-changed");
             const field = fieldEl.dataset.field;
             if (!field) return;
             const prefix = `${basePath}/materials/${idx}/${field}`;
-            if (hasChangeInSet(userChangedPathsCurrent, prefix)) fieldEl.classList.add("user-changed-current");
-            else if (hasChangeInSet(userChangedPathsPrevious, prefix)) fieldEl.classList.add("user-changed-previous");
-            else if (hasChangeInSet(apiChangedPaths, prefix)) fieldEl.classList.add("api-changed");
+            if (isShifted) return;
+            if (hasChangeInSet(userChangedPathsCurrent, prefix) || (isAdded && hasChangeInSet(userChangedPathsCurrent, `${basePath}/materials/-`))) {
+              fieldEl.classList.add("user-changed-current");
+            } else if (hasChangeInSet(userChangedPathsPrevious, prefix)) {
+              fieldEl.classList.add("user-changed-previous");
+            } else if (hasChangeInSet(apiChangedPaths, prefix) || (isAdded && hasChangeInSet(apiChangedPaths, `${basePath}/materials/-`))) {
+              fieldEl.classList.add("api-changed");
+            }
           });
         });
       }
@@ -2242,14 +2334,25 @@ function updateSourceInfoUI() {
         itemFormFinishesList.querySelectorAll("[data-finish-row]").forEach((row) => {
           const idx = row.dataset.index;
           if (typeof idx !== "string") return;
+          const rowIndex = parseInt(idx, 10);
+          if (!Number.isFinite(rowIndex)) return;
+          const currEntry = currFinishes[rowIndex];
+          const matchIndex = currEntry ? findMatchIndex(baseFinishes, currEntry, finishEquals) : -1;
+          const isShifted = matchIndex !== -1 && matchIndex !== rowIndex;
+          const isAdded = rowIndex >= baseFinishes.length;
           row.querySelectorAll("[data-field]").forEach((fieldEl) => {
             fieldEl.classList.remove("user-changed-current", "user-changed-previous", "api-changed");
             const field = fieldEl.dataset.field;
             if (!field) return;
             const prefix = `${basePath}/finishes/${idx}/${field}`;
-            if (hasChangeInSet(userChangedPathsCurrent, prefix)) fieldEl.classList.add("user-changed-current");
-            else if (hasChangeInSet(userChangedPathsPrevious, prefix)) fieldEl.classList.add("user-changed-previous");
-            else if (hasChangeInSet(apiChangedPaths, prefix)) fieldEl.classList.add("api-changed");
+            if (isShifted) return;
+            if (hasChangeInSet(userChangedPathsCurrent, prefix) || (isAdded && hasChangeInSet(userChangedPathsCurrent, `${basePath}/finishes/-`))) {
+              fieldEl.classList.add("user-changed-current");
+            } else if (hasChangeInSet(userChangedPathsPrevious, prefix)) {
+              fieldEl.classList.add("user-changed-previous");
+            } else if (hasChangeInSet(apiChangedPaths, prefix) || (isAdded && hasChangeInSet(apiChangedPaths, `${basePath}/finishes/-`))) {
+              fieldEl.classList.add("api-changed");
+            }
           });
         });
       }
@@ -2295,6 +2398,10 @@ function updateSourceInfoUI() {
     return patch;
   }
 
+  function joinPath(base, segment) {
+    return base === "" ? "/" + segment : base + "/" + segment;
+  }
+
   function diffAny(baseVal, currVal, path, patch) {
     const p = path === "" ? "/" : path;
     const baseUndef = typeof baseVal === "undefined";
@@ -2310,8 +2417,97 @@ function updateSourceInfoUI() {
     const currIsObject = currVal !== null && typeof currVal === "object" && !currIsArray;
 
     if (baseIsArray && currIsArray) {
+      if (path.endsWith("materials") || path.endsWith("finishes")) {
+        const eqMaterial = (a, d) => {
+          if (!a || !d) return false;
+          if (typeof a === "string" || typeof d === "string") return String(a) === String(d);
+          return (
+            (a.kind || "") === (d.kind || "") &&
+            (a.spec || "") === (d.spec || "") &&
+            (typeof a.quantity === "number" ? a.quantity : null) === (typeof d.quantity === "number" ? d.quantity : null) &&
+            (a.unit || "") === (d.unit || "")
+          );
+        };
+        const eqFinish = (a, d) => {
+          if (!a || !d) return false;
+          if (typeof a === "string" || typeof d === "string") return String(a) === String(d);
+          const aArea = a.surfaceArea || {};
+          const dArea = d.surfaceArea || {};
+          return (
+            (a.kind || "") === (d.kind || "") &&
+            (a.spec || "") === (d.spec || "") &&
+            (typeof aArea.value === "number" ? aArea.value : null) === (typeof dArea.value === "number" ? dArea.value : null) &&
+            (aArea.unit || "") === (dArea.unit || "")
+          );
+        };
+        const eqFn = path.endsWith("materials") ? eqMaterial : eqFinish;
+        const used = new Set();
+        const replaceOps = [];
+        const addOps = [];
+        const removeOps = [];
+
+        for (let i = 0; i < currVal.length; i++) {
+          const currEntry = currVal[i];
+          let match = -1;
+          for (let j = 0; j < baseVal.length; j++) {
+            if (used.has(j)) continue;
+            if (eqFn(baseVal[j], currEntry)) {
+              match = j;
+              used.add(j);
+              break;
+            }
+          }
+          if (match === -1) {
+            addOps.push({ op: "add", path: joinPath(path, "-"), value: currEntry });
+          } else {
+            diffAny(baseVal[match], currEntry, joinPath(path, String(match)), replaceOps);
+          }
+        }
+
+        for (let j = baseVal.length - 1; j >= 0; j--) {
+          if (!used.has(j)) removeOps.push({ op: "remove", path: joinPath(path, String(j)) });
+        }
+        patch.push(...replaceOps);
+        patch.push(...removeOps);
+        patch.push(...addOps);
+        return;
+      }
+
+      if (path.endsWith("Items")) {
+        const baseById = new Map();
+        baseVal.forEach((item, idx) => {
+          if (item && typeof item.id === "string") baseById.set(item.id, { item, idx });
+        });
+        const usedIds = new Set();
+        const replaceOps = [];
+        const addOps = [];
+        const removeOps = [];
+
+        for (let i = 0; i < currVal.length; i++) {
+          const currItem = currVal[i];
+          const id = currItem && currItem.id;
+          if (typeof id === "string" && baseById.has(id)) {
+            const baseEntry = baseById.get(id);
+            usedIds.add(id);
+            diffAny(baseEntry.item, currItem, joinPath(path, String(baseEntry.idx)), replaceOps);
+          } else {
+            addOps.push({ op: "add", path: joinPath(path, "-"), value: currItem });
+          }
+        }
+
+        for (let j = baseVal.length - 1; j >= 0; j--) {
+          const baseItem = baseVal[j];
+          const id = baseItem && baseItem.id;
+          if (!id || !usedIds.has(id)) removeOps.push({ op: "remove", path: joinPath(path, String(j)) });
+        }
+        patch.push(...replaceOps);
+        patch.push(...removeOps);
+        patch.push(...addOps);
+        return;
+      }
+
       const maxLen = Math.max(baseVal.length, currVal.length);
-      for (let i = 0; i < maxLen; i++) diffAny(baseVal[i], currVal[i], p + "/" + i, patch);
+      for (let i = 0; i < maxLen; i++) diffAny(baseVal[i], currVal[i], joinPath(path, String(i)), patch);
       return;
     }
 
@@ -2324,7 +2520,7 @@ function updateSourceInfoUI() {
     const currKeys = Object.keys(currVal);
     const allKeys = new Set([...baseKeys, ...currKeys]);
 
-    allKeys.forEach((key) => diffAny(baseVal[key], currVal[key], p + "/" + escapeJsonPointer(key), patch));
+    allKeys.forEach((key) => diffAny(baseVal[key], currVal[key], joinPath(path, escapeJsonPointer(key)), patch));
   }
 
   function escapeJsonPointer(str) {
@@ -2333,6 +2529,7 @@ function updateSourceInfoUI() {
 
   function collectDiffPaths(base, curr) {
     const paths = new Set();
+    if (!base || !curr) return paths;
     function walk(b, c, path) {
       const baseUndef = typeof b === "undefined";
       const currUndef = typeof c === "undefined";
@@ -2345,15 +2542,85 @@ function updateSourceInfoUI() {
       const cObj = c !== null && typeof c === "object" && !cArr;
 
       if (bArr && cArr) {
+        if (path.endsWith("materials") || path.endsWith("finishes")) {
+          const used = new Set();
+          const eqMaterial = (a, d) => {
+            if (!a || !d) return false;
+            if (typeof a === "string" || typeof d === "string") return String(a) === String(d);
+            return (
+              (a.kind || "") === (d.kind || "") &&
+              (a.spec || "") === (d.spec || "") &&
+              (typeof a.quantity === "number" ? a.quantity : null) === (typeof d.quantity === "number" ? d.quantity : null) &&
+              (a.unit || "") === (d.unit || "")
+            );
+          };
+          const eqFinish = (a, d) => {
+            if (!a || !d) return false;
+            if (typeof a === "string" || typeof d === "string") return String(a) === String(d);
+            const aArea = a.surfaceArea || {};
+            const dArea = d.surfaceArea || {};
+            return (
+              (a.kind || "") === (d.kind || "") &&
+              (a.spec || "") === (d.spec || "") &&
+              (typeof aArea.value === "number" ? aArea.value : null) === (typeof dArea.value === "number" ? dArea.value : null) &&
+              (aArea.unit || "") === (dArea.unit || "")
+            );
+          };
+          const eqFn = path.endsWith("materials") ? eqMaterial : eqFinish;
+
+          for (let i = 0; i < c.length; i++) {
+            const currEntry = c[i];
+            let match = -1;
+            for (let j = 0; j < b.length; j++) {
+              if (used.has(j)) continue;
+              if (eqFn(b[j], currEntry)) {
+                match = j;
+                used.add(j);
+                break;
+              }
+            }
+            if (match === -1) {
+              paths.add(path + "/-");
+            } else {
+              walk(b[match], currEntry, path + "/" + i);
+            }
+          }
+
+          for (let j = 0; j < b.length; j++) {
+            if (!used.has(j)) paths.add(path + "/" + j);
+          }
+          return;
+        }
+
+        if (path.endsWith("Items")) {
+          const baseById = new Map();
+          b.forEach((item, idx) => {
+            if (item && typeof item.id === "string") baseById.set(item.id, { item, idx });
+          });
+          const usedIds = new Set();
+
+          for (let i = 0; i < c.length; i++) {
+            const currItem = c[i];
+            const id = currItem && currItem.id;
+            if (typeof id === "string" && baseById.has(id)) {
+              usedIds.add(id);
+              walk(baseById.get(id).item, currItem, path + "/" + i);
+            } else {
+              paths.add(path + "/-");
+            }
+          }
+
+          b.forEach((item, idx) => {
+            const id = item && item.id;
+            if (!id || !usedIds.has(id)) paths.add(path + "/" + idx);
+          });
+          return;
+        }
+
         const minLen = Math.min(b.length, c.length);
 
-        // 共通部分
         for (let i = 0; i < minLen; i++) walk(b[i], c[i], path + "/" + i);
-
-        // 追加（末尾）
         for (let i = minLen; i < c.length; i++) paths.add(path + "/-");
-
-        // 削除（後ろから）
         for (let i = b.length - 1; i >= c.length; i--) paths.add(path + "/" + i);
 
         return;
