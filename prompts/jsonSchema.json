@@ -14,10 +14,11 @@
     "finishingItems",
     "electricalItems",
     "leaseItems",
-    "siteCosts"
+    "siteCosts",
+    "signItems"
   ],
   "properties": {
-    "version": { "type": "string", "default": "1.1.5" },
+    "version": { "type": "string", "default": "1.1.11" },
     "stage": { "type": "string", "enum": ["extraction", "review", "ready_for_estimation"] },
     "extractedAt": { "type": "string", "format": "date-time" },
 
@@ -32,54 +33,76 @@
       }
     },
 
-    "nlCorrectionGlobal": { "type": "string" },
+    "nlCorrectionGlobal": {
+      "type": "string",
+      "description": "抽出全体に対する自然言語の修正指示"
+    },
+
+    "nlCorrectionWoodworkItems": {
+      "type": "string",
+      "description": "木工造作物カテゴリ全体に対する自然言語の修正指示（項目ごとの nlCorrection とは別）"
+    },
+    "nlCorrectionFloorItems": {
+      "type": "string",
+      "description": "床カテゴリ全体に対する自然言語の修正指示（項目ごとの nlCorrection とは別）"
+    },
+    "nlCorrectionFinishingItems": {
+      "type": "string",
+      "description": "表装カテゴリ全体に対する自然言語の修正指示（項目ごとの nlCorrection とは別）"
+    },
+    "nlCorrectionElectricalItems": {
+      "type": "string",
+      "description": "電気カテゴリ全体に対する自然言語の修正指示（項目ごとの nlCorrection とは別）"
+    },
+    "nlCorrectionLeaseItems": {
+      "type": "string",
+      "description": "リースカテゴリ全体に対する自然言語の修正指示（項目ごとの nlCorrection とは別）"
+    },
+    "nlCorrectionSiteCosts": {
+      "type": "string",
+      "description": "現場費（siteCosts）全体に対する自然言語の修正指示"
+    },
+
+    "nlCorrectionSignItems": {
+      "type": "string",
+      "description": "サイン（signItems）カテゴリ全体に対する自然言語の修正指示（項目ごとの nlCorrection とは別）"
+    },
+    "nlCollectionSignItems": {
+      "type": "string",
+      "description": "サイン（signItems）カテゴリ全体に対する自然言語の収集/補足（nlCorrectionとは別用途）"
+    },
 
     "woodworkItems": {
       "type": "array",
       "items": { "$ref": "#/$defs/woodworkItem" }
     },
-
     "floorItems": {
       "type": "array",
-      "description": "床（材料/施工/人工などを同一配列内の別項目として保持可能）",
       "items": { "$ref": "#/$defs/quantifiedCostItem" }
     },
-
     "finishingItems": {
       "type": "array",
-      "description": "表装（材料/施工/人工などを同一配列内の別項目として保持可能）",
       "items": { "$ref": "#/$defs/quantifiedCostItem" }
     },
-
     "electricalItems": {
       "type": "array",
-      "description": "電気（器具/配線/人工などを同一配列内の別項目として保持可能）",
       "items": { "$ref": "#/$defs/quantifiedElectricalItem" }
     },
-
     "leaseItems": {
       "type": "array",
       "items": { "$ref": "#/$defs/leaseItem" }
     },
 
-    "siteCosts": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["laborCost", "transportCost", "wasteDisposalCost"],
-      "properties": {
-        "laborCost": { "$ref": "#/$defs/costAmountWithNotes" },
-        "transportCost": { "$ref": "#/$defs/costAmountWithNotes" },
-        "wasteDisposalCost": { "$ref": "#/$defs/costAmountWithNotes" },
-        "notes": { "type": "string" }
-      }
-    }
+    "signItems": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/signItem" }
+    },
+
+    "siteCosts": { "$ref": "#/$defs/siteCosts" }
   },
 
   "$defs": {
-    "sourceKind": {
-      "type": "string",
-      "enum": ["chatGPT", "user"]
-    },
+    "sourceKind": { "type": "string", "enum": ["chatGPT", "user"] },
 
     "costAmountWithNotes": {
       "type": "object",
@@ -99,11 +122,7 @@
       "properties": {
         "mode": { "type": "string", "enum": ["estimate_by_model", "override_fixed"] },
         "currency": { "type": "string", "default": "JPY" },
-        "unitPrice": {
-          "type": ["number", "null"],
-          "minimum": 0,
-          "description": "単価（override_fixed の場合は基本的に数値、estimate_by_model の場合は null も可）"
-        },
+        "unitPrice": { "type": ["number", "null"], "minimum": 0 },
         "notes": { "type": "string" }
       },
       "allOf": [
@@ -123,7 +142,10 @@
         "name": { "type": "string" },
         "includeInEstimate": { "type": "boolean" },
         "price": { "$ref": "#/$defs/priceInstruction" },
-        "nlCorrection": { "type": "string" },
+        "nlCorrection": {
+          "type": "string",
+          "description": "この項目（アイテム）に対する自然言語の修正指示"
+        },
         "source": { "$ref": "#/$defs/sourceKind" },
         "notes": { "type": "string" }
       }
@@ -131,8 +153,7 @@
 
     "quantityUnit": {
       "type": "string",
-      "enum": ["個", "台", "式", "m", "m²", "m³", "本", "枚", "人時", "人日"],
-      "description": "数量の単位（床/表装/電気/人工まで同じ仕組みで扱う）"
+      "enum": ["個", "台", "式", "m", "m²", "m³", "本", "枚", "人時", "人日"]
     },
 
     "quantifiedCostItem": {
@@ -143,26 +164,17 @@
           "additionalProperties": false,
           "required": ["quantity", "unit", "cost"],
           "properties": {
-            "quantity": {
-              "type": "number",
-              "exclusiveMinimum": 0,
-              "description": "数量（人工の場合も quantity=工数として使用可）"
-            },
+            "quantity": { "type": "number", "exclusiveMinimum": 0 },
             "unit": { "$ref": "#/$defs/quantityUnit" },
-            "cost": {
-              "$ref": "#/$defs/costAmountWithNotes",
-              "description": "小計（quantity×price.unitPrice の結果や固定金額を格納）"
-            }
+            "cost": { "$ref": "#/$defs/costAmountWithNotes" }
           }
         }
-      ],
-      "description": "床/表装向け：数量・単位・単価（price.unitPrice）で表現する汎用アイテム（人工も同一形式で保持）"
+      ]
     },
 
     "electricalType": {
       "type": "string",
-      "enum": ["lighting", "panelboard", "outlet", "wiring", "switch", "labor", "other"],
-      "description": "電気の種別。人工は labor として同一配列内に保持可能。"
+      "enum": ["lighting", "panelboard", "outlet", "wiring", "switch", "labor", "other"]
     },
 
     "electricalSpec": {
@@ -187,11 +199,7 @@
           "properties": {
             "electricalType": { "$ref": "#/$defs/electricalType" },
             "isHighPlace": { "type": "boolean" },
-            "spec": {
-              "type": ["object", "null"],
-              "description": "照明/分電盤の電気的スペック（分類用）",
-              "allOf": [{ "$ref": "#/$defs/electricalSpec" }]
-            }
+            "spec": { "type": ["object", "null"], "allOf": [{ "$ref": "#/$defs/electricalSpec" }] }
           },
           "allOf": [
             {
@@ -200,8 +208,7 @@
             }
           ]
         }
-      ],
-      "description": "電気向け：数量・単位・単価（price.unitPrice）で表現しつつ、高所フラグとスペック分類を持つ"
+      ]
     },
 
     "structureType": {
@@ -215,7 +222,8 @@
         "柱",
         "梁",
         "特大造作物",
-        "複雑造作物"
+        "複雑造作物",
+        "サイン"
       ]
     },
 
@@ -259,6 +267,26 @@
       "required": ["value"],
       "properties": {
         "value": { "type": "number", "exclusiveMinimum": 0 },
+        "unit": {
+          "type": "string",
+          "enum": ["m²", "枚", "ロール", "m"],
+          "default": "m²"
+        },
+        "notes": { "type": "string" }
+      }
+    },
+
+    "finishEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind"],
+      "properties": {
+        "kind": { "$ref": "#/$defs/finishKind" },
+        "spec": {
+          "type": "string",
+          "description": "仕上げの仕様（例：色番、品番、シート種別など）"
+        },
+        "surfaceArea": { "$ref": "#/$defs/surfaceAreaWithNotes" },
         "notes": { "type": "string" }
       }
     },
@@ -312,25 +340,21 @@
             "quantity": { "type": "integer", "minimum": 1 },
             "structureType": { "$ref": "#/$defs/structureType" },
             "dimensions": { "$ref": "#/$defs/dimensionHWD" },
-
             "materials": { "type": "array", "items": { "$ref": "#/$defs/materialSpec" } },
-            "finishes": { "type": "array", "items": { "$ref": "#/$defs/finishKind" } },
+
+            "finishes": { "type": "array", "items": { "$ref": "#/$defs/finishEntry" } },
             "finishSurfaceArea": { "$ref": "#/$defs/surfaceAreaWithNotes" },
 
             "isBent": { "type": "boolean" },
             "hasSpecialAngles": { "type": "boolean" },
             "supportsHeavyLoad": { "type": "boolean" },
             "outlineDescription": { "type": "string" },
-
             "laborPerUnit": { "$ref": "#/$defs/laborSpec" },
             "laborTotal": { "$ref": "#/$defs/laborSpec" },
             "laborCoefficient": { "$ref": "#/$defs/coefficientWithNotes" },
-
             "boundingBoxVolume": { "type": "number", "minimum": 0 },
-
             "materialCost": { "$ref": "#/$defs/costAmountWithNotes" },
             "laborCost": { "$ref": "#/$defs/costAmountWithNotes" },
-
             "recognitionConfidence": { "type": "number", "minimum": 0, "maximum": 1 }
           }
         }
@@ -351,6 +375,118 @@
           }
         }
       ]
+    },
+
+    "signType": {
+      "type": "string",
+      "enum": ["カッティングシート", "抜き行灯", "チャネルサイン", "バルーン", "その他"]
+    },
+
+    "signItem": {
+      "allOf": [
+        { "$ref": "#/$defs/quantifiedCostItem" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["signType"],
+          "properties": {
+            "signType": { "$ref": "#/$defs/signType" }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["price"],
+          "properties": {
+            "price": {
+              "allOf": [
+                { "$ref": "#/$defs/priceInstruction" },
+                {
+                  "type": "object",
+                  "required": ["unitPrice"],
+                  "properties": {
+                    "mode": { "const": "override_fixed" }
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+
+    "siteCosts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["laborCost", "transportCost", "wasteDisposalCost"],
+      "properties": {
+        "laborCost": { "$ref": "#/$defs/siteLaborCost" },
+        "transportCost": { "$ref": "#/$defs/siteTransportCost" },
+        "wasteDisposalCost": { "$ref": "#/$defs/siteWasteDisposalCost" },
+        "notes": { "type": "string" }
+      }
+    },
+
+    "siteLaborEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["people", "days"],
+      "properties": {
+        "people": { "type": "integer", "minimum": 0 },
+        "days": { "type": "number", "minimum": 0 },
+        "notes": { "type": "string" }
+      }
+    },
+
+    "siteLaborCost": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["unitPrice", "setup", "teardown"],
+      "properties": {
+        "unitPrice": { "type": "number", "minimum": 0 },
+        "setup": { "$ref": "#/$defs/siteLaborEntry" },
+        "teardown": { "$ref": "#/$defs/siteLaborEntry" },
+        "cost": { "$ref": "#/$defs/costAmountWithNotes" },
+        "notes": { "type": "string" }
+      }
+    },
+
+    "siteTransportEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["vehicleType", "vehicles", "days", "unitPrice"],
+      "properties": {
+        "vehicleType": { "type": "string" },
+        "vehicles": { "type": "integer", "minimum": 0 },
+        "days": { "type": "number", "minimum": 0 },
+        "unitPrice": { "type": "number", "minimum": 0 },
+        "cost": { "$ref": "#/$defs/costAmountWithNotes" },
+        "notes": { "type": "string" }
+      }
+    },
+
+    "siteTransportCost": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["setup", "teardown"],
+      "properties": {
+        "setup": { "type": "array", "items": { "$ref": "#/$defs/siteTransportEntry" } },
+        "teardown": { "type": "array", "items": { "$ref": "#/$defs/siteTransportEntry" } },
+        "cost": { "$ref": "#/$defs/costAmountWithNotes" },
+        "notes": { "type": "string" }
+      }
+    },
+
+    "siteWasteDisposalCost": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["vehicles", "unitPrice"],
+      "properties": {
+        "vehicles": { "type": "integer", "minimum": 0 },
+        "unitPrice": { "type": "number", "minimum": 0 },
+        "cost": { "$ref": "#/$defs/costAmountWithNotes" },
+        "notes": { "type": "string" }
+      }
     }
   }
 }

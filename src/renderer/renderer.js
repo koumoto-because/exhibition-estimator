@@ -1,12 +1,13 @@
 // src/renderer/renderer.js
 
 // ===== Schema compatibility =====
-const SCHEMA_VERSION = "1.1.5";
+const SCHEMA_VERSION = "1.1.11";
 
 const CATEGORIES = [
   { key: "woodworkItems", label: "木工造作物" },
   { key: "floorItems", label: "床" },
   { key: "finishingItems", label: "表装" },
+  { key: "signItems", label: "サイン" },
   { key: "electricalItems", label: "電気" },
   { key: "leaseItems", label: "リース" },
   { key: "siteCosts", label: "現場費" }
@@ -65,24 +66,45 @@ document.addEventListener("DOMContentLoaded", async () => {
   const itemsView = document.getElementById("items-view");
   const itemEditorContainer = document.getElementById("item-editor-container");
 
-  // nlCorrectionGlobal
-  const nlGlobalTextarea = document.getElementById("nl-global");
+  // nlCorrection per category
+  const nlWoodworkTextarea = document.getElementById("nl-woodwork");
+  const nlFloorTextarea = document.getElementById("nl-floor");
+  const nlFinishingTextarea = document.getElementById("nl-finishing");
+  const nlSignTextarea = document.getElementById("nl-sign");
+  const nlElectricalTextarea = document.getElementById("nl-electrical");
+  const nlLeaseTextarea = document.getElementById("nl-lease");
+  const nlSiteCostsTextarea = document.getElementById("nl-sitecosts");
 
   // siteCosts
   const siteCostsSection = document.getElementById("site-costs-section");
-  const siteCostsLaborAmount = document.getElementById("sitecosts-labor-amount");
+  const siteCostsLaborUnitPrice = document.getElementById("sitecosts-labor-unitprice");
+  const siteCostsLaborCurrency = document.getElementById("sitecosts-labor-currency");
+  const siteCostsLaborSetupPeople = document.getElementById("sitecosts-labor-setup-people");
+  const siteCostsLaborSetupDays = document.getElementById("sitecosts-labor-setup-days");
+  const siteCostsLaborTeardownPeople = document.getElementById("sitecosts-labor-teardown-people");
+  const siteCostsLaborTeardownDays = document.getElementById("sitecosts-labor-teardown-days");
   const siteCostsLaborNotes = document.getElementById("sitecosts-labor-notes");
-  const siteCostsTransportAmount = document.getElementById("sitecosts-transport-amount");
+  const siteCostsTransportCurrency = document.getElementById("sitecosts-transport-currency");
+  const siteCostsTransportSetupList = document.getElementById("sitecosts-transport-setup-list");
+  const siteCostsTransportTeardownList = document.getElementById("sitecosts-transport-teardown-list");
+  const siteCostsTransportSetupAdd = document.getElementById("sitecosts-transport-setup-add");
+  const siteCostsTransportTeardownAdd = document.getElementById("sitecosts-transport-teardown-add");
   const siteCostsTransportNotes = document.getElementById("sitecosts-transport-notes");
-  const siteCostsWasteAmount = document.getElementById("sitecosts-waste-amount");
+  const siteCostsWasteVehicles = document.getElementById("sitecosts-waste-vehicles");
+  const siteCostsWasteUnitPrice = document.getElementById("sitecosts-waste-unitprice");
+  const siteCostsWasteCurrency = document.getElementById("sitecosts-waste-currency");
   const siteCostsWasteNotes = document.getElementById("sitecosts-waste-notes");
+  const siteCostsFormLabor = document.getElementById("sitecosts-form-labor");
+  const siteCostsFormTransport = document.getElementById("sitecosts-form-transport");
+  const siteCostsFormWaste = document.getElementById("sitecosts-form-waste");
 
   const itemEditor = document.getElementById("item-editor");
   const itemEditorLabel = document.getElementById("item-editor-label");
   const btnApplyItemEdit = document.getElementById("btn-apply-item-edit");
 
   // ★ 手動追加（空行追加ボタン）
-  const btnAddEmptyItem = document.getElementById("btn-add-empty-item");
+  const btnItemAdd = document.getElementById("btn-item-add");
+  const btnItemRemove = document.getElementById("btn-item-remove");
 
   // フォーム
   const itemFormId = document.getElementById("item-form-id");
@@ -93,8 +115,12 @@ document.addEventListener("DOMContentLoaded", async () => {
   const itemFormDimW = document.getElementById("item-form-dim-w");
   const itemFormDimD = document.getElementById("item-form-dim-d");
   const itemFormQuantity = document.getElementById("item-form-quantity");
-  const itemFormMaterials = document.getElementById("item-form-materials");
-  const itemFormFinishes = document.getElementById("item-form-finishes");
+  const itemFormUnit = document.getElementById("item-form-unit");
+  const itemFormMaterialsList = document.getElementById("item-form-materials-list");
+  const itemFormMaterialsAdd = document.getElementById("item-form-materials-add");
+  const itemFormFinishesList = document.getElementById("item-form-finishes-list");
+  const itemFormFinishesAdd = document.getElementById("item-form-finishes-add");
+  const itemFormSignType = document.getElementById("item-form-sign-type");
   const itemFormPriceUnitPrice = document.getElementById("item-form-price-unitprice");
   const itemFormMaterialCostAmount = document.getElementById("item-form-materialcost-amount");
   const itemFormMaterialCostNotes = document.getElementById("item-form-materialcost-notes");
@@ -102,6 +128,13 @@ document.addEventListener("DOMContentLoaded", async () => {
   const itemFormLaborDays = document.getElementById("item-form-labor-days");
   const itemFormCostAmount = document.getElementById("item-form-cost-amount");
   const itemFormCostNotes = document.getElementById("item-form-cost-notes");
+  const itemFormElectricalType = document.getElementById("item-form-electrical-type");
+  const itemFormIsHighPlace = document.getElementById("item-form-is-high-place");
+  const itemFormSpecVoltage = document.getElementById("item-form-spec-voltage");
+  const itemFormSpecWatt = document.getElementById("item-form-spec-watt");
+  const itemFormSpecPhase = document.getElementById("item-form-spec-phase");
+  const itemFormSpecBreaker = document.getElementById("item-form-spec-breaker");
+  const itemFormSpecNotes = document.getElementById("item-form-spec-notes");
 
   const itemFormIsBent = document.getElementById("item-form-isbent");
   const itemFormSpecialAngles = document.getElementById("item-form-special-angles");
@@ -121,6 +154,19 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   const woodworkOnlyEls = document.querySelectorAll("[data-woodwork-only]");
   const genericOnlyEls = document.querySelectorAll("[data-generic-only]");
+  const electricalOnlyEls = document.querySelectorAll("[data-electrical-only]");
+  const signOnlyEls = document.querySelectorAll("[data-sign-only]");
+
+  const SITE_COST_ITEMS = [
+    { key: "laborCost", label: "人工費", formEl: siteCostsFormLabor },
+    { key: "transportCost", label: "運搬費", formEl: siteCostsFormTransport },
+    { key: "wasteDisposalCost", label: "残材処理費", formEl: siteCostsFormWaste }
+  ];
+
+  const MATERIAL_KIND_OPTIONS = ["小割", "垂木", "ベニヤ", "曲げベニヤ", "ポリ板", "メラミン", "ラワンランバ"];
+  const MATERIAL_UNIT_OPTIONS = ["枚", "本", "m", "m²", "m³", "式", "個"];
+  const FINISH_KIND_OPTIONS = ["メラミン", "ポリ板", "経師", "出力シート", "塗装"];
+  const FINISH_UNIT_OPTIONS = ["m²", "枚", "ロール", "m"];
 
 
 
@@ -189,27 +235,47 @@ function updateSourceInfoUI() {
   function setFormModeForCategory() {
     const isWoodwork = selectedCategoryKey === "woodworkItems";
     const isSiteCosts = selectedCategoryKey === "siteCosts";
+    const isElectrical = selectedCategoryKey === "electricalItems";
+    const isSign = selectedCategoryKey === "signItems";
+    if (document.body) document.body.dataset.category = selectedCategoryKey;
     woodworkOnlyEls.forEach((el) => {
       el.hidden = !isWoodwork;
     });
     genericOnlyEls.forEach((el) => {
       el.hidden = isWoodwork;
     });
+    electricalOnlyEls.forEach((el) => {
+      el.hidden = !isElectrical;
+    });
+    signOnlyEls.forEach((el) => {
+      el.hidden = !isSign;
+    });
     if (siteCostsSection) siteCostsSection.hidden = !isSiteCosts;
-    if (btnAddEmptyItem) btnAddEmptyItem.disabled = isSiteCosts;
-    if (itemEditorContainer) itemEditorContainer.hidden = isSiteCosts;
+    if (btnItemAdd) btnItemAdd.disabled = isSiteCosts;
+    if (btnItemRemove) btnItemRemove.disabled = isSiteCosts;
+    if (itemEditorContainer) itemEditorContainer.hidden = false;
+    if (isSiteCosts && tabForm && tabJson && tabContentForm && tabContentJson) {
+      tabForm.classList.add("active");
+      tabJson.classList.remove("active");
+      tabContentForm.classList.remove("hidden");
+      tabContentJson.classList.add("hidden");
+    }
+    syncSiteCostsFormVisibility();
   }
 
   function selectCategory(key) {
     if (!CATEGORIES.some((c) => c.key === key)) return;
     selectedCategoryKey = key;
     selectedIndex = null;
+    if (selectedCategoryKey === "siteCosts") selectedIndex = 0;
     if (itemEditor) itemEditor.value = "";
     resetForm();
     setFormModeForCategory();
     renderItemsTable();
     syncSiteCostsToUI();
-    updateGlobalHighlight();
+    syncSiteCostsFormVisibility();
+    syncSiteCostEditorForSelection();
+    updateCategoryHighlight();
     updateFormHighlightsForSelected();
   }
 
@@ -268,8 +334,8 @@ function updateSourceInfoUI() {
     normalizePayloadForSchema(currentPayload);
     normalizePayloadForSchema(basePayload);
 
-    // nlCorrectionGlobal の復元
-    syncNlGlobalToUI();
+    // nlCorrection per category の復元
+    syncNlCategoryToUI();
     updateSourceInfoUI();
     renderCategoryTabs();
 
@@ -287,7 +353,7 @@ function updateSourceInfoUI() {
       if (itemEditorLabel) itemEditorLabel.textContent = "（行をクリックするとここに表示されます）";
     }
 
-    updateGlobalHighlight();
+    updateCategoryHighlight();
     updateFormHighlightsForSelected();
     setFormModeForCategory();
   }
@@ -373,7 +439,7 @@ function updateSourceInfoUI() {
   if (changeHighlightToggle) {
     changeHighlightToggle.addEventListener("change", () => {
       renderItemsTable();
-      updateGlobalHighlight();
+      updateCategoryHighlight();
       updateFormHighlightsForSelected();
     });
   }
@@ -399,31 +465,61 @@ function updateSourceInfoUI() {
     });
   }
 
-  // ===== nlCorrectionGlobal: UI -> JSON 即時反映 =====
-  if (nlGlobalTextarea) {
-    nlGlobalTextarea.addEventListener("input", () => {
+  const nlCategoryTextareas = {
+    woodworkItems: nlWoodworkTextarea,
+    floorItems: nlFloorTextarea,
+    finishingItems: nlFinishingTextarea,
+    signItems: nlSignTextarea,
+    electricalItems: nlElectricalTextarea,
+    leaseItems: nlLeaseTextarea,
+    siteCosts: nlSiteCostsTextarea
+  };
+
+  const nlCategoryKeys = {
+    woodworkItems: "nlCorrectionWoodworkItems",
+    floorItems: "nlCorrectionFloorItems",
+    finishingItems: "nlCorrectionFinishingItems",
+    signItems: "nlCorrectionSignItems",
+    electricalItems: "nlCorrectionElectricalItems",
+    leaseItems: "nlCorrectionLeaseItems",
+    siteCosts: "nlCorrectionSiteCosts"
+  };
+
+  // ===== nlCorrection per category: UI -> JSON 即時反映 =====
+  Object.entries(nlCategoryTextareas).forEach(([category, el]) => {
+    if (!el) return;
+    el.addEventListener("input", () => {
       if (!currentPayload) return;
       normalizePayloadForSchema(currentPayload);
-      currentPayload.nlCorrectionGlobal = nlGlobalTextarea.value || "";
+      const key = nlCategoryKeys[category];
+      if (key) currentPayload[key] = el.value || "";
       if (basePayload && currentPayload) {
         userChangedPathsCurrent = collectDiffPaths(basePayload, currentPayload);
       }
-      updateGlobalHighlight();
+      updateCategoryHighlight();
       renderItemsTable();
-      setStatus("全体修正指示（nlCorrectionGlobal）を反映しました");
+      setStatus(`カテゴリ修正指示（${category}）を反映しました`);
     });
-  }
+  });
 
   // ===== siteCosts: UI -> JSON 即時反映 (schema v1.1.2) =====
   function syncSiteCostsToUI() {
-    if (!siteCostsLaborAmount || !siteCostsTransportAmount || !siteCostsWasteAmount) return;
     if (!currentPayload) {
-      siteCostsLaborAmount.value = "";
+      if (siteCostsLaborUnitPrice) siteCostsLaborUnitPrice.value = "";
+      if (siteCostsLaborCurrency) siteCostsLaborCurrency.value = "JPY";
+      if (siteCostsLaborSetupPeople) siteCostsLaborSetupPeople.value = "";
+      if (siteCostsLaborSetupDays) siteCostsLaborSetupDays.value = "";
+      if (siteCostsLaborTeardownPeople) siteCostsLaborTeardownPeople.value = "";
+      if (siteCostsLaborTeardownDays) siteCostsLaborTeardownDays.value = "";
       if (siteCostsLaborNotes) siteCostsLaborNotes.value = "";
-      siteCostsTransportAmount.value = "";
+      if (siteCostsTransportCurrency) siteCostsTransportCurrency.value = "JPY";
       if (siteCostsTransportNotes) siteCostsTransportNotes.value = "";
-      siteCostsWasteAmount.value = "";
+      if (siteCostsWasteVehicles) siteCostsWasteVehicles.value = "";
+      if (siteCostsWasteUnitPrice) siteCostsWasteUnitPrice.value = "";
+      if (siteCostsWasteCurrency) siteCostsWasteCurrency.value = "JPY";
       if (siteCostsWasteNotes) siteCostsWasteNotes.value = "";
+      if (siteCostsTransportSetupList) siteCostsTransportSetupList.innerHTML = "";
+      if (siteCostsTransportTeardownList) siteCostsTransportTeardownList.innerHTML = "";
       return;
     }
 
@@ -433,15 +529,211 @@ function updateSourceInfoUI() {
     const labor = sc.laborCost || {};
     const transport = sc.transportCost || {};
     const waste = sc.wasteDisposalCost || {};
+    const laborCost = labor.cost || labor;
+    const transportCost = transport.cost || transport;
+    const wasteCost = waste.cost || waste;
 
-    siteCostsLaborAmount.value = typeof labor.amount === "number" ? String(labor.amount) : "";
+    if (siteCostsLaborUnitPrice) siteCostsLaborUnitPrice.value = typeof labor.unitPrice === "number" ? String(labor.unitPrice) : "";
+    if (siteCostsLaborCurrency) siteCostsLaborCurrency.value = laborCost.currency || "JPY";
+    if (siteCostsLaborSetupPeople) siteCostsLaborSetupPeople.value = typeof labor.setup?.people === "number" ? String(labor.setup.people) : "";
+    if (siteCostsLaborSetupDays) siteCostsLaborSetupDays.value = typeof labor.setup?.days === "number" ? String(labor.setup.days) : "";
+    if (siteCostsLaborTeardownPeople) siteCostsLaborTeardownPeople.value = typeof labor.teardown?.people === "number" ? String(labor.teardown.people) : "";
+    if (siteCostsLaborTeardownDays) siteCostsLaborTeardownDays.value = typeof labor.teardown?.days === "number" ? String(labor.teardown.days) : "";
     if (siteCostsLaborNotes) siteCostsLaborNotes.value = labor.notes || "";
 
-    siteCostsTransportAmount.value = typeof transport.amount === "number" ? String(transport.amount) : "";
+    if (siteCostsTransportCurrency) siteCostsTransportCurrency.value = transportCost.currency || "JPY";
     if (siteCostsTransportNotes) siteCostsTransportNotes.value = transport.notes || "";
 
-    siteCostsWasteAmount.value = typeof waste.amount === "number" ? String(waste.amount) : "";
+    if (siteCostsWasteVehicles) siteCostsWasteVehicles.value = typeof waste.vehicles === "number" ? String(waste.vehicles) : "";
+    if (siteCostsWasteUnitPrice) siteCostsWasteUnitPrice.value = typeof waste.unitPrice === "number" ? String(waste.unitPrice) : "";
+    if (siteCostsWasteCurrency) siteCostsWasteCurrency.value = wasteCost.currency || "JPY";
     if (siteCostsWasteNotes) siteCostsWasteNotes.value = waste.notes || "";
+
+    renderTransportList(siteCostsTransportSetupList, transport.setup || [], "setup");
+    renderTransportList(siteCostsTransportTeardownList, transport.teardown || [], "teardown");
+  }
+
+  function syncSiteCostsFormVisibility() {
+    const isSiteCosts = selectedCategoryKey === "siteCosts";
+    SITE_COST_ITEMS.forEach((item, index) => {
+      if (!item.formEl) return;
+      item.formEl.hidden = !(isSiteCosts && selectedIndex === index);
+    });
+  }
+
+  function buildSelect(options, value) {
+    const select = document.createElement("select");
+    const empty = document.createElement("option");
+    empty.value = "";
+    empty.textContent = "（未設定）";
+    select.appendChild(empty);
+    options.forEach((opt) => {
+      const el = document.createElement("option");
+      el.value = opt;
+      el.textContent = opt;
+      select.appendChild(el);
+    });
+    if (typeof value === "string") select.value = value;
+    return select;
+  }
+
+  function createMaterialRow(entry, index) {
+    const row = document.createElement("div");
+    row.className = "repeat-row";
+    row.dataset.materialRow = "1";
+    if (Number.isInteger(index)) row.dataset.index = String(index);
+
+    const kindSelect = buildSelect(MATERIAL_KIND_OPTIONS, entry.kind || "");
+    kindSelect.dataset.field = "kind";
+    kindSelect.className = "repeat-kind";
+
+    const specInput = document.createElement("input");
+    specInput.type = "text";
+    specInput.placeholder = "仕様";
+    specInput.value = entry.spec || "";
+    specInput.dataset.field = "spec";
+    specInput.className = "repeat-spec";
+
+    const qtyInput = document.createElement("input");
+    qtyInput.type = "number";
+    qtyInput.step = "0.01";
+    qtyInput.placeholder = "数量";
+    qtyInput.value = typeof entry.quantity === "number" ? String(entry.quantity) : "";
+    qtyInput.dataset.field = "quantity";
+    qtyInput.className = "repeat-small repeat-qty";
+
+    const unitSelect = buildSelect(MATERIAL_UNIT_OPTIONS, entry.unit || "");
+    unitSelect.dataset.field = "unit";
+    unitSelect.className = "repeat-small repeat-unit";
+
+    const removeBtn = document.createElement("button");
+    removeBtn.type = "button";
+    removeBtn.textContent = "-";
+    removeBtn.dataset.action = "remove-material";
+
+    row.appendChild(kindSelect);
+    row.appendChild(specInput);
+    row.appendChild(qtyInput);
+    row.appendChild(unitSelect);
+    row.appendChild(removeBtn);
+    return row;
+  }
+
+  function createFinishRow(entry, index) {
+    const row = document.createElement("div");
+    row.className = "repeat-row";
+    row.dataset.finishRow = "1";
+    if (Number.isInteger(index)) row.dataset.index = String(index);
+
+    const kindSelect = buildSelect(FINISH_KIND_OPTIONS, entry.kind || "");
+    kindSelect.dataset.field = "kind";
+    kindSelect.className = "repeat-kind";
+
+    const specInput = document.createElement("input");
+    specInput.type = "text";
+    specInput.placeholder = "仕様";
+    specInput.value = entry.spec || "";
+    specInput.dataset.field = "spec";
+    specInput.className = "repeat-spec";
+
+    const areaInput = document.createElement("input");
+    areaInput.type = "number";
+    areaInput.step = "0.01";
+    areaInput.placeholder = "面積";
+    areaInput.value = typeof entry.surfaceAreaValue === "number" ? String(entry.surfaceAreaValue) : "";
+    areaInput.dataset.field = "surfaceArea/value";
+    areaInput.className = "repeat-small repeat-qty";
+
+    const unitSelect = buildSelect(FINISH_UNIT_OPTIONS, entry.surfaceAreaUnit || "");
+    unitSelect.dataset.field = "surfaceArea/unit";
+    unitSelect.className = "repeat-small repeat-unit";
+
+    const removeBtn = document.createElement("button");
+    removeBtn.type = "button";
+    removeBtn.textContent = "-";
+    removeBtn.dataset.action = "remove-finish";
+
+    row.appendChild(kindSelect);
+    row.appendChild(specInput);
+    row.appendChild(areaInput);
+    row.appendChild(unitSelect);
+    row.appendChild(removeBtn);
+    return row;
+  }
+
+  function renderMaterialsList(list) {
+    if (!itemFormMaterialsList) return;
+    itemFormMaterialsList.innerHTML = "";
+    const items = Array.isArray(list) ? list : [];
+    items.forEach((entry, index) => {
+      const normalized = typeof entry === "string" ? { kind: entry } : entry || {};
+      itemFormMaterialsList.appendChild(
+        createMaterialRow({
+          kind: normalized.kind || "",
+          spec: normalized.spec || "",
+          quantity: typeof normalized.quantity === "number" ? normalized.quantity : 1,
+          unit: normalized.unit || ""
+        }, index)
+      );
+    });
+  }
+
+  function renderFinishesList(list) {
+    if (!itemFormFinishesList) return;
+    itemFormFinishesList.innerHTML = "";
+    const items = Array.isArray(list) ? list : [];
+    items.forEach((entry, index) => {
+      const normalized = typeof entry === "string" ? { kind: entry } : entry || {};
+      const surfaceArea = normalized.surfaceArea || {};
+      itemFormFinishesList.appendChild(
+        createFinishRow({
+          kind: normalized.kind || "",
+          spec: normalized.spec || "",
+          surfaceAreaValue: typeof surfaceArea.value === "number" ? surfaceArea.value : null,
+          surfaceAreaUnit: typeof surfaceArea.unit === "string" ? surfaceArea.unit : ""
+        }, index)
+      );
+    });
+  }
+
+  function readMaterialsList() {
+    if (!itemFormMaterialsList) return [];
+    const rows = itemFormMaterialsList.querySelectorAll("[data-material-row]");
+    const items = [];
+    rows.forEach((row) => {
+      const get = (field) => row.querySelector(`[data-field="${field}"]`);
+      const kind = (get("kind") && get("kind").value) || "";
+      if (!kind) return;
+      const spec = (get("spec") && get("spec").value) || "";
+      const qtyRaw = get("quantity") && get("quantity").value;
+      const qtyVal = parseFloat(String(qtyRaw || ""));
+      const quantity = Number.isFinite(qtyVal) && qtyVal > 0 ? qtyVal : 1;
+      const unit = (get("unit") && get("unit").value) || "式";
+      items.push({ kind, spec, quantity, unit });
+    });
+    return items;
+  }
+
+  function readFinishesList() {
+    if (!itemFormFinishesList) return [];
+    const rows = itemFormFinishesList.querySelectorAll("[data-finish-row]");
+    const items = [];
+    rows.forEach((row) => {
+      const get = (field) => row.querySelector(`[data-field="${field}"]`);
+      const kind = (get("kind") && get("kind").value) || "";
+      if (!kind) return;
+      const spec = (get("spec") && get("spec").value) || "";
+      const areaRaw = get("surfaceArea/value") && get("surfaceArea/value").value;
+      const areaVal = parseFloat(String(areaRaw || ""));
+      const area = Number.isFinite(areaVal) && areaVal > 0 ? areaVal : null;
+      const unit = (get("surfaceArea/unit") && get("surfaceArea/unit").value) || "";
+      const entry = { kind, spec };
+      if (area != null || unit) {
+        entry.surfaceArea = { value: area != null ? area : 0.01, unit: unit || "m²", notes: "" };
+      }
+      items.push(entry);
+    });
+    return items;
   }
 
   function applySiteCostsFromUI() {
@@ -452,37 +744,85 @@ function updateSourceInfoUI() {
       return Number.isFinite(n) ? n : null;
     };
 
-    const laborAmount = siteCostsLaborAmount ? toNum(siteCostsLaborAmount.value) : null;
-    const transportAmount = siteCostsTransportAmount ? toNum(siteCostsTransportAmount.value) : null;
-    const wasteAmount = siteCostsWasteAmount ? toNum(siteCostsWasteAmount.value) : null;
+    const laborUnitPrice = siteCostsLaborUnitPrice ? toNum(siteCostsLaborUnitPrice.value) : null;
+    const laborCostNotes = currentPayload.siteCosts.laborCost.cost?.notes || "";
+    const laborSetup = {
+      people: siteCostsLaborSetupPeople ? toNum(siteCostsLaborSetupPeople.value) ?? 0 : 0,
+      days: siteCostsLaborSetupDays ? toNum(siteCostsLaborSetupDays.value) ?? 0 : 0,
+      notes: currentPayload.siteCosts.laborCost.setup?.notes || ""
+    };
+    const laborTeardown = {
+      people: siteCostsLaborTeardownPeople ? toNum(siteCostsLaborTeardownPeople.value) ?? 0 : 0,
+      days: siteCostsLaborTeardownDays ? toNum(siteCostsLaborTeardownDays.value) ?? 0 : 0,
+      notes: currentPayload.siteCosts.laborCost.teardown?.notes || ""
+    };
+    const transportCostNotes = currentPayload.siteCosts.transportCost.cost?.notes || "";
+    const transportSetupArr = readTransportEntries(siteCostsTransportSetupList);
+    const transportTeardownArr = readTransportEntries(siteCostsTransportTeardownList);
+    const wasteVehicles = siteCostsWasteVehicles ? toNum(siteCostsWasteVehicles.value) : null;
+    const wasteUnitPrice = siteCostsWasteUnitPrice ? toNum(siteCostsWasteUnitPrice.value) : null;
+    const wasteCostNotes = currentPayload.siteCosts.wasteDisposalCost.cost?.notes || "";
 
-    currentPayload.siteCosts.laborCost.amount = laborAmount ?? 0;
-    currentPayload.siteCosts.laborCost.currency = "JPY";
+    const laborUnit = laborUnitPrice ?? 0;
+    const laborSetupDays = (laborSetup.people || 0) * (laborSetup.days || 0);
+    const laborTeardownDays = (laborTeardown.people || 0) * (laborTeardown.days || 0);
+    const laborAmount = laborUnit * (laborSetupDays + laborTeardownDays);
+
+    const transportAmount = [...transportSetupArr, ...transportTeardownArr].reduce((sum, entry) => {
+      const amount = entry && entry.cost && typeof entry.cost.amount === "number" ? entry.cost.amount : 0;
+      return sum + amount;
+    }, 0);
+
+    const wasteAmount = (wasteVehicles ?? 0) * (wasteUnitPrice ?? 0);
+
+    currentPayload.siteCosts.laborCost.unitPrice = laborUnitPrice ?? 0;
+    currentPayload.siteCosts.laborCost.setup = laborSetup || {};
+    currentPayload.siteCosts.laborCost.teardown = laborTeardown || {};
+    currentPayload.siteCosts.laborCost.cost = {
+      amount: laborAmount ?? 0,
+      currency: (siteCostsLaborCurrency && siteCostsLaborCurrency.value) || "JPY",
+      notes: laborCostNotes
+    };
     currentPayload.siteCosts.laborCost.notes = (siteCostsLaborNotes && siteCostsLaborNotes.value) || "";
 
-    currentPayload.siteCosts.transportCost.amount = transportAmount ?? 0;
-    currentPayload.siteCosts.transportCost.currency = "JPY";
+    currentPayload.siteCosts.transportCost.setup = transportSetupArr;
+    currentPayload.siteCosts.transportCost.teardown = transportTeardownArr;
+    currentPayload.siteCosts.transportCost.cost = {
+      amount: transportAmount ?? 0,
+      currency: (siteCostsTransportCurrency && siteCostsTransportCurrency.value) || "JPY",
+      notes: transportCostNotes
+    };
     currentPayload.siteCosts.transportCost.notes = (siteCostsTransportNotes && siteCostsTransportNotes.value) || "";
 
-    currentPayload.siteCosts.wasteDisposalCost.amount = wasteAmount ?? 0;
-    currentPayload.siteCosts.wasteDisposalCost.currency = "JPY";
+    currentPayload.siteCosts.wasteDisposalCost.vehicles = wasteVehicles ?? 0;
+    currentPayload.siteCosts.wasteDisposalCost.unitPrice = wasteUnitPrice ?? 0;
+    currentPayload.siteCosts.wasteDisposalCost.cost = {
+      amount: wasteAmount ?? 0,
+      currency: (siteCostsWasteCurrency && siteCostsWasteCurrency.value) || "JPY",
+      notes: wasteCostNotes
+    };
     currentPayload.siteCosts.wasteDisposalCost.notes = (siteCostsWasteNotes && siteCostsWasteNotes.value) || "";
 
     if (basePayload && currentPayload) {
       userChangedPathsCurrent = collectDiffPaths(basePayload, currentPayload);
     }
 
-    updateGlobalHighlight();
+    updateCategoryHighlight();
+    syncSiteCostEditorForSelection();
     renderItemsTable();
     setStatus("現場費（siteCosts）を反映しました");
   }
 
   [
-    siteCostsLaborAmount,
+    siteCostsLaborUnitPrice,
+    siteCostsLaborSetupPeople,
+    siteCostsLaborSetupDays,
+    siteCostsLaborTeardownPeople,
+    siteCostsLaborTeardownDays,
     siteCostsLaborNotes,
-    siteCostsTransportAmount,
     siteCostsTransportNotes,
-    siteCostsWasteAmount,
+    siteCostsWasteVehicles,
+    siteCostsWasteUnitPrice,
     siteCostsWasteNotes
   ].forEach((el) => {
     if (!el) return;
@@ -493,25 +833,179 @@ function updateSourceInfoUI() {
     });
   });
 
-  function syncNlGlobalToUI() {
-    if (!nlGlobalTextarea) return;
-    if (!currentPayload) {
-      nlGlobalTextarea.value = "";
-      return;
-    }
-    normalizePayloadForSchema(currentPayload);
-    nlGlobalTextarea.value = currentPayload.nlCorrectionGlobal || "";
+  function renderTransportList(container, entries, kind) {
+    if (!container) return;
+    container.innerHTML = "";
+    const list = Array.isArray(entries) ? entries : [];
+    list.forEach((entry, index) => {
+      const row = document.createElement("div");
+      row.className = "sitecosts-transport-grid";
+      row.dataset.transportRow = "1";
+      row.dataset.transportKind = kind;
+      row.dataset.transportIndex = String(index);
+
+      const typeInput = document.createElement("input");
+      typeInput.type = "text";
+      typeInput.placeholder = "車種";
+      typeInput.value = typeof entry.vehicleType === "string" ? entry.vehicleType : "";
+
+      const vehiclesInput = document.createElement("input");
+      vehiclesInput.type = "number";
+      vehiclesInput.step = "1";
+      vehiclesInput.placeholder = "台数";
+      vehiclesInput.value = typeof entry.vehicles === "number" ? String(entry.vehicles) : "";
+
+      const daysInput = document.createElement("input");
+      daysInput.type = "number";
+      daysInput.step = "0.5";
+      daysInput.placeholder = "日数";
+      daysInput.value = typeof entry.days === "number" ? String(entry.days) : "";
+
+      const unitPriceInput = document.createElement("input");
+      unitPriceInput.type = "number";
+      unitPriceInput.step = "1";
+      unitPriceInput.placeholder = "単価(JPY)";
+      unitPriceInput.value = typeof entry.unitPrice === "number" ? String(entry.unitPrice) : "";
+
+      const removeBtn = document.createElement("button");
+      removeBtn.type = "button";
+      removeBtn.textContent = "削除";
+      removeBtn.addEventListener("click", () => {
+        if (!currentPayload) return;
+        normalizePayloadForSchema(currentPayload);
+        const target = kind === "setup" ? currentPayload.siteCosts.transportCost.setup : currentPayload.siteCosts.transportCost.teardown;
+        if (Array.isArray(target)) target.splice(index, 1);
+        if (basePayload && currentPayload) userChangedPathsCurrent = collectDiffPaths(basePayload, currentPayload);
+        syncSiteCostsToUI();
+        updateCategoryHighlight();
+        renderItemsTable();
+      });
+
+      row.appendChild(typeInput);
+      row.appendChild(vehiclesInput);
+      row.appendChild(daysInput);
+      row.appendChild(unitPriceInput);
+      row.appendChild(removeBtn);
+      container.appendChild(row);
+    });
   }
 
-  function updateGlobalHighlight() {
-    if (!nlGlobalTextarea) return;
-    nlGlobalTextarea.classList.remove("user-changed-current", "user-changed-previous", "api-changed");
-    if (!isHighlightEnabled()) return;
+  function readTransportEntries(container) {
+    if (!container) return [];
+    const rows = container.querySelectorAll("[data-transport-row]");
+    const entries = [];
+    rows.forEach((row) => {
+      const inputs = row.querySelectorAll("input");
+      const getVal = (i) => (inputs[i] ? inputs[i].value : "");
+      const toNum = (v) => {
+        const n = parseFloat(String(v || ""));
+        return Number.isFinite(n) ? n : 0;
+      };
+      const vehicleType = getVal(0);
+      const vehicles = toNum(getVal(1));
+      const days = toNum(getVal(2));
+      const unitPrice = toNum(getVal(3));
+      const amount = vehicles * days * unitPrice;
+      entries.push({
+        vehicleType: vehicleType || "",
+        vehicles,
+        days,
+        unitPrice,
+        cost: { amount, currency: "JPY", notes: "" },
+        notes: ""
+      });
+    });
+    return entries;
+  }
 
-    const prefix = "/nlCorrectionGlobal";
-    if (hasChangeInSet(userChangedPathsCurrent, prefix)) nlGlobalTextarea.classList.add("user-changed-current");
-    else if (hasChangeInSet(userChangedPathsPrevious, prefix)) nlGlobalTextarea.classList.add("user-changed-previous");
-    else if (hasChangeInSet(apiChangedPaths, prefix)) nlGlobalTextarea.classList.add("api-changed");
+  [siteCostsTransportSetupList, siteCostsTransportTeardownList].forEach((container) => {
+    if (!container) return;
+    container.addEventListener("input", () => {
+      if (!currentPayload) return;
+      applySiteCostsFromUI();
+    });
+  });
+
+  if (siteCostsTransportSetupAdd) {
+    siteCostsTransportSetupAdd.addEventListener("click", () => {
+      if (!currentPayload) return;
+      normalizePayloadForSchema(currentPayload);
+      if (!Array.isArray(currentPayload.siteCosts.transportCost.setup)) {
+        currentPayload.siteCosts.transportCost.setup = [];
+      }
+      currentPayload.siteCosts.transportCost.setup.push({
+        vehicleType: "",
+        vehicles: 0,
+        days: 0,
+        unitPrice: 0,
+        cost: { amount: 0, currency: "JPY", notes: "" },
+        notes: ""
+      });
+      if (basePayload && currentPayload) userChangedPathsCurrent = collectDiffPaths(basePayload, currentPayload);
+      syncSiteCostsToUI();
+      updateCategoryHighlight();
+      renderItemsTable();
+    });
+  }
+
+  if (siteCostsTransportTeardownAdd) {
+    siteCostsTransportTeardownAdd.addEventListener("click", () => {
+      if (!currentPayload) return;
+      normalizePayloadForSchema(currentPayload);
+      if (!Array.isArray(currentPayload.siteCosts.transportCost.teardown)) {
+        currentPayload.siteCosts.transportCost.teardown = [];
+      }
+      currentPayload.siteCosts.transportCost.teardown.push({
+        vehicleType: "",
+        vehicles: 0,
+        days: 0,
+        unitPrice: 0,
+        cost: { amount: 0, currency: "JPY", notes: "" },
+        notes: ""
+      });
+      if (basePayload && currentPayload) userChangedPathsCurrent = collectDiffPaths(basePayload, currentPayload);
+      syncSiteCostsToUI();
+      updateCategoryHighlight();
+      renderItemsTable();
+    });
+  }
+
+  const siteCostsSummaries = document.querySelectorAll(".sitecosts-drawer summary");
+  siteCostsSummaries.forEach((summary) => {
+    summary.addEventListener("click", (e) => {
+      const tag = e.target && e.target.tagName;
+      if (tag === "INPUT" || tag === "LABEL" || tag === "BUTTON") {
+        e.preventDefault();
+      }
+    });
+  });
+
+  function syncNlCategoryToUI() {
+    Object.values(nlCategoryTextareas).forEach((el) => {
+      if (el) el.value = "";
+    });
+    if (!currentPayload) return;
+    normalizePayloadForSchema(currentPayload);
+    Object.entries(nlCategoryTextareas).forEach(([category, el]) => {
+      if (!el) return;
+      const key = nlCategoryKeys[category];
+      el.value = typeof currentPayload[key] === "string" ? currentPayload[key] : "";
+    });
+  }
+
+  function updateCategoryHighlight() {
+    Object.values(nlCategoryTextareas).forEach((el) => {
+      if (!el) return;
+      el.classList.remove("user-changed-current", "user-changed-previous", "api-changed");
+    });
+    if (!isHighlightEnabled()) return;
+    const key = nlCategoryKeys[selectedCategoryKey];
+    const el = nlCategoryTextareas[selectedCategoryKey];
+    if (!el || !key) return;
+    const prefix = `/${key}`;
+    if (hasChangeInSet(userChangedPathsCurrent, prefix)) el.classList.add("user-changed-current");
+    else if (hasChangeInSet(userChangedPathsPrevious, prefix)) el.classList.add("user-changed-previous");
+    else if (hasChangeInSet(apiChangedPaths, prefix)) el.classList.add("api-changed");
   }
 
   // JSON取り込み
@@ -547,14 +1041,17 @@ function updateSourceInfoUI() {
 
       userChangedPathsCurrent = new Set();
       selectedIndex = null;
+      if (selectedCategoryKey === "siteCosts") selectedIndex = 0;
       if (itemEditor) itemEditor.value = "";
       resetForm();
 
-      syncNlGlobalToUI();
+      syncNlCategoryToUI();
       renderCategoryTabs();
       setFormModeForCategory();
       syncSiteCostsToUI();
-      updateGlobalHighlight();
+      syncSiteCostsFormVisibility();
+      syncSiteCostEditorForSelection();
+      updateCategoryHighlight();
 
       renderItemsTable();
       updateSourceInfoUI();
@@ -566,14 +1063,43 @@ function updateSourceInfoUI() {
 
   function getItems() {
     if (!currentPayload) return [];
-    if (selectedCategoryKey === "siteCosts") return [];
+    if (selectedCategoryKey === "siteCosts") return getSiteCostItems();
     const arr = currentPayload[selectedCategoryKey];
     return Array.isArray(arr) ? arr : [];
   }
 
+  function getSiteCostItems() {
+    if (!currentPayload) return [];
+    normalizePayloadForSchema(currentPayload);
+    return SITE_COST_ITEMS.map((item) => {
+      const entry = currentPayload.siteCosts?.[item.key] || {};
+      return {
+        key: item.key,
+        label: item.label,
+        cost: entry.cost || entry
+      };
+    });
+  }
+
+  function getSiteCostEntry(index) {
+    if (!currentPayload) return null;
+    normalizePayloadForSchema(currentPayload);
+    const meta = SITE_COST_ITEMS[index];
+    if (!meta) return null;
+    return currentPayload.siteCosts?.[meta.key] || null;
+  }
+
+  function syncSiteCostEditorForSelection() {
+    if (selectedCategoryKey !== "siteCosts") return;
+    const meta = SITE_COST_ITEMS[selectedIndex] || null;
+    const entry = getSiteCostEntry(selectedIndex);
+    if (itemEditor) itemEditor.value = entry ? JSON.stringify(entry, null, 2) : "";
+    if (itemEditorLabel) itemEditorLabel.textContent = meta ? `項目: ${meta.label}` : "項目: -";
+  }
+
   // ★手動追加（空の項目を追加）
-  if (btnAddEmptyItem) {
-    btnAddEmptyItem.addEventListener("click", () => {
+  if (btnItemAdd) {
+    btnItemAdd.addEventListener("click", () => {
       if (!currentPayload) {
         alert("先に ChatGPT 出力JSONを取り込んでください（カテゴリ配列に追加するため）。");
         return;
@@ -599,8 +1125,8 @@ function updateSourceInfoUI() {
       selectedIndex = currentPayload[selectedCategoryKey].length - 1;
 
       renderItemsTable();
-      syncNlGlobalToUI();
-      updateGlobalHighlight();
+      syncNlCategoryToUI();
+      updateCategoryHighlight();
 
       // 選択・フォームへ反映
       if (itemEditor) itemEditor.value = JSON.stringify(newItem, null, 2);
@@ -614,6 +1140,45 @@ function updateSourceInfoUI() {
     });
   }
 
+  // ★削除（選択項目）
+  if (btnItemRemove) {
+    btnItemRemove.addEventListener("click", () => {
+      if (!currentPayload) {
+        alert("先に ChatGPT 出力JSONを取り込んでください。");
+        return;
+      }
+      if (selectedCategoryKey === "siteCosts") {
+        alert("現場費（siteCosts）は削除できません。");
+        return;
+      }
+      if (selectedIndex == null) {
+        alert("削除する項目をリストから選択してください。");
+        return;
+      }
+      if (!Array.isArray(currentPayload[selectedCategoryKey])) {
+        alert(`現在のJSONに ${selectedCategoryKey} がありません。`);
+        return;
+      }
+
+      pushStateHistory(true);
+      currentPayload[selectedCategoryKey].splice(selectedIndex, 1);
+
+      if (basePayload && currentPayload) {
+        userChangedPathsCurrent = collectDiffPaths(basePayload, currentPayload);
+      }
+
+      selectedIndex = null;
+      if (itemEditor) itemEditor.value = "";
+      resetForm();
+      renderItemsTable();
+      updateCategoryHighlight();
+      updateFormHighlightsForSelected();
+      setStatus("選択中の項目を削除しました");
+      updateRestoreButtonEnabled();
+      updateRedoButtonEnabled();
+    });
+  }
+
   // テーブル描画
   function renderItemsTable() {
     if (!itemsView) return;
@@ -621,26 +1186,34 @@ function updateSourceInfoUI() {
     // siteCosts は配列ではないので、専用表示
     if (selectedCategoryKey === "siteCosts") {
       normalizePayloadForSchema(currentPayload);
-      const sc = (currentPayload && currentPayload.siteCosts) || {};
-      const labor = sc.laborCost || {};
-      const transport = sc.transportCost || {};
-      const waste = sc.wasteDisposalCost || {};
-
+      const items = getSiteCostItems();
       const version = (currentPayload && currentPayload.version) || "";
       const stage = (currentPayload && currentPayload.stage) || "";
-      const hasGlobal = currentPayload && typeof currentPayload.nlCorrectionGlobal === "string";
+      const nlKey = nlCategoryKeys.siteCosts;
+      const hasCategoryCorrection = nlKey && currentPayload && typeof currentPayload[nlKey] === "string";
 
       let html = "";
       html += `<div style="margin-bottom:4px;">`;
       html += `<strong>version:</strong> ${escapeHtml(version)} / <strong>stage:</strong> ${escapeHtml(stage)} / `;
-      html += `<strong>nlCorrectionGlobal:</strong> ${hasGlobal ? "OK" : "MISSING"} / `;
-      html += `<strong>category:</strong> siteCosts</div>`;
+      html += `<strong>nlCorrection:</strong> ${hasCategoryCorrection ? "OK" : "MISSING"} / `;
+      html += `<strong>category:</strong> siteCosts / <strong>count:</strong> ${items.length}件</div>`;
 
       html += `<table>`;
-      html += `<thead><tr><th>項目</th><th>金額(JPY)</th><th>メモ</th></tr></thead><tbody>`;
-      html += `<tr><td>laborCost</td><td>${escapeHtml(typeof labor.amount === "number" ? labor.amount : "")}</td><td>${escapeHtml(labor.notes || "")}</td></tr>`;
-      html += `<tr><td>transportCost</td><td>${escapeHtml(typeof transport.amount === "number" ? transport.amount : "")}</td><td>${escapeHtml(transport.notes || "")}</td></tr>`;
-      html += `<tr><td>wasteDisposalCost</td><td>${escapeHtml(typeof waste.amount === "number" ? waste.amount : "")}</td><td>${escapeHtml(waste.notes || "")}</td></tr>`;
+      html += `<thead><tr><th>#</th><th>項目</th><th>合計</th></tr></thead><tbody>`;
+
+      const highlightOn = isHighlightEnabled();
+      items.forEach((item, index) => {
+        const rowClass = index === selectedIndex ? "selected" : "";
+        const amount = typeof item.cost?.amount === "number" ? item.cost.amount : "";
+        const basePath = `/siteCosts/${item.key}`;
+        const clsAmount = highlightOn ? classForPathPrefix(`${basePath}/cost`) : "";
+        html += `<tr data-index="${index}" class="${rowClass}">
+          <td>${index + 1}</td>
+          <td>${escapeHtml(item.label)}</td>
+          <td class="${clsAmount}">${escapeHtml(amount)}</td>
+        </tr>`;
+      });
+
       html += `</tbody></table>`;
       itemsView.innerHTML = html;
       return;
@@ -649,36 +1222,72 @@ function updateSourceInfoUI() {
     const items = getItems();
     const version = (currentPayload && currentPayload.version) || "";
     const stage = (currentPayload && currentPayload.stage) || "";
-    const hasGlobal = currentPayload && typeof currentPayload.nlCorrectionGlobal === "string";
+    const nlKey = nlCategoryKeys[selectedCategoryKey];
+    const hasCategoryCorrection = nlKey && currentPayload && typeof currentPayload[nlKey] === "string";
 
     let html = "";
     html += `<div style="margin-bottom:4px;">`;
     html += `<strong>version:</strong> ${escapeHtml(version)} / <strong>stage:</strong> ${escapeHtml(stage)} / `;
-    html += `<strong>nlCorrectionGlobal:</strong> ${hasGlobal ? "OK" : "MISSING"} / `;
+    html += `<strong>nlCorrection:</strong> ${hasCategoryCorrection ? "OK" : "MISSING"} / `;
     const catLabel = (CATEGORIES.find((c) => c.key === selectedCategoryKey) || {}).label || selectedCategoryKey;
     html += `<strong>category:</strong> ${escapeHtml(catLabel)} / <strong>count:</strong> ${items.length}件</div>`;
 
-    if (items.length > 0) {
+    {
       const isWoodwork = selectedCategoryKey === "woodworkItems";
+      const isElectrical = selectedCategoryKey === "electricalItems";
       html += `<table>`;
-      html += `<thead><tr>
-        <th>#</th>
-        <th>積算</th>
-        <th>名称</th>
-        <th>種別</th>
-        <th>寸法(H/W/D)</th>
-        <th>材料(kind)</th>
-        <th>仕上げ</th>
-        <th>数量</th>
-        <th>単価</th>
-        <th>費用/材料費</th>
-        <th>人工合計(人日)</th>
-        <th>source</th>
-      </tr></thead><tbody>`;
+      let emptyColspan = 0;
+      if (isWoodwork) {
+        emptyColspan = 13;
+        html += `<thead><tr>
+          <th>#</th>
+          <th>積算</th>
+          <th>名称</th>
+          <th>種別</th>
+          <th>寸法(H/W/D)</th>
+          <th>材料</th>
+          <th>仕上げ</th>
+          <th>数量</th>
+          <th>単価</th>
+          <th>材料費</th>
+          <th>人工(人日)</th>
+          <th>人工費</th>
+          <th>合計</th>
+        </tr></thead><tbody>`;
+      } else if (isElectrical) {
+        emptyColspan = 9;
+        html += `<thead><tr>
+          <th>#</th>
+          <th>積算</th>
+          <th>名称</th>
+          <th>電気種別</th>
+          <th>電気仕様</th>
+          <th>数量</th>
+          <th>単価</th>
+          <th>合計</th>
+          <th>source</th>
+        </tr></thead><tbody>`;
+      } else {
+        emptyColspan = 7;
+        html += `<thead><tr>
+          <th>#</th>
+          <th>積算</th>
+          <th>名称</th>
+          <th>数量</th>
+          <th>単価</th>
+          <th>合計</th>
+          <th>source</th>
+        </tr></thead><tbody>`;
+      }
+
+      if (items.length === 0) {
+        html += `<tr><td colspan="${emptyColspan}">items が見つかりませんでした。</td></tr>`;
+      }
 
       items.forEach((item, index) => {
         const name = item.name || "";
         const structureType = isWoodwork ? (item.structureType || item.type || "") : "";
+        const electricalType = isElectrical ? (item.electricalType || "") : "";
 
         const dims = isWoodwork ? item.dimensions || {} : {};
         const dimParts = [];
@@ -688,23 +1297,68 @@ function updateSourceInfoUI() {
         const dimStr = dimParts.join(" ");
 
         const materials = isWoodwork && Array.isArray(item.materials) ? item.materials : [];
-        const materialKinds = materials.map((m) => m && m.kind).filter((k) => !!k);
-        const materialKindStr = materialKinds.join(", ");
+        const materialStr = materials
+          .map((m) => {
+            if (!m) return "";
+            if (typeof m === "string") return m;
+            return m.kind || "";
+          })
+          .filter((s) => s.length > 0)
+          .join(", ");
 
         const finishes = isWoodwork && Array.isArray(item.finishes) ? item.finishes : [];
-        const finishesStr = finishes.join(", ");
+        const finishesStr = finishes
+          .map((f) => {
+            if (!f) return "";
+            if (typeof f === "string") return f;
+            return f.kind || "";
+          })
+          .filter((s) => s.length > 0)
+          .join(", ");
 
         const quantity = typeof item.quantity === "number" ? item.quantity : "";
+        const unit = !isWoodwork && typeof item.unit === "string" ? item.unit : "";
+        const quantityDisplay = !isWoodwork && unit ? `${quantity}${unit}` : quantity;
 
-        const unitPrice = item.price && typeof item.price.unitPrice === "number" ? item.price.unitPrice : "";
+        const unitPriceValue = item.price && typeof item.price.unitPrice === "number" ? item.price.unitPrice : null;
+        const unitPriceDisplay = typeof unitPriceValue === "number" ? unitPriceValue : "";
 
-        const materialCostAmount = isWoodwork
+        const materialCostValue = isWoodwork
           ? item.materialCost && typeof item.materialCost.amount === "number"
             ? item.materialCost.amount
-            : ""
+            : null
           : item.cost && typeof item.cost.amount === "number"
             ? item.cost.amount
-            : "";
+            : null;
+        const materialCostDisplay = typeof materialCostValue === "number" ? materialCostValue : "";
+
+        const laborCostValue =
+          isWoodwork && item.laborCost && typeof item.laborCost.amount === "number" ? item.laborCost.amount : null;
+        const laborCostDisplay = typeof laborCostValue === "number" ? laborCostValue : "";
+
+        let totalValue = null;
+        if (typeof unitPriceValue === "number" && typeof item.quantity === "number") {
+          totalValue = unitPriceValue * item.quantity;
+        } else if (isWoodwork) {
+          const material = typeof materialCostValue === "number" ? materialCostValue : 0;
+          const labor = typeof laborCostValue === "number" ? laborCostValue : 0;
+          totalValue = material + labor;
+        } else if (typeof materialCostValue === "number") {
+          totalValue = materialCostValue;
+        }
+        const totalDisplay = typeof totalValue === "number" ? totalValue : "";
+
+        const spec = isElectrical ? item.spec || {} : {};
+        let specDisplay = "";
+        if (isElectrical) {
+          const specParts = [];
+          if (typeof spec.voltageV === "number") specParts.push(`${spec.voltageV}V`);
+          if (typeof spec.wattW === "number") specParts.push(`${spec.wattW}W`);
+          if (typeof spec.phase === "string" && spec.phase)
+            specParts.push(spec.phase === "single" ? "単相" : spec.phase === "three" ? "三相" : spec.phase);
+          if (typeof spec.breakerA === "number") specParts.push(`${spec.breakerA}A`);
+          specDisplay = specParts.join(" / ");
+        }
 
         const laborTotal = isWoodwork ? item.laborTotal || item.labor || null : null;
         let laborTotalDays = "";
@@ -724,35 +1378,72 @@ function updateSourceInfoUI() {
         const basePath = `/${selectedCategoryKey}/${index}`;
         const clsInclude = highlightOn ? classForPathPrefix(`${basePath}/includeInEstimate`) : "";
         const clsName = highlightOn ? classForPathPrefix(`${basePath}/name`) : "";
-        const clsType = highlightOn && isWoodwork ? classForPathPrefix(`${basePath}/structureType`) : "";
-        const clsDim = highlightOn && isWoodwork ? classForPathPrefix(`${basePath}/dimensions`) : "";
+        const clsType = highlightOn
+          ? isWoodwork
+            ? classForPathPrefix(`${basePath}/structureType`)
+            : isElectrical
+              ? classForPathPrefix(`${basePath}/electricalType`)
+              : ""
+          : "";
+        const clsDim = highlightOn
+          ? isWoodwork
+            ? classForPathPrefix(`${basePath}/dimensions`)
+            : isElectrical
+              ? classForPathPrefix(`${basePath}/spec`)
+              : ""
+          : "";
         const clsMat = highlightOn && isWoodwork ? classForPathPrefix(`${basePath}/materials`) : "";
         const clsFin = highlightOn && isWoodwork ? classForPathPrefix(`${basePath}/finishes`) : "";
         const clsQty = highlightOn ? classForPathPrefix(`${basePath}/quantity`) : "";
         const clsUnitPrice = highlightOn ? classForPathPrefix(`${basePath}/price/unitPrice`) : "";
         const clsMatCost = highlightOn ? classForPathPrefix(`${basePath}/${isWoodwork ? "materialCost" : "cost"}`) : "";
+        const clsLaborCost = highlightOn && isWoodwork ? classForPathPrefix(`${basePath}/laborCost`) : "";
+        const clsTotal = highlightOn ? classForPathPrefix(`${basePath}/price`) : "";
         const clsLabor = highlightOn && isWoodwork ? classForPathPrefix(`${basePath}/laborTotal`) : "";
         const clsSrc = highlightOn ? classForPathPrefix(`${basePath}/source`) : "";
 
-        html += `<tr data-index="${index}" class="${rowClass}">
-          <td>${index + 1}</td>
-          <td class="${clsInclude}">${escapeHtml(includeInEstimateMark)}</td>
-          <td class="${clsName}">${escapeHtml(name)}</td>
-          <td class="${clsType}">${escapeHtml(structureType)}</td>
-          <td class="${clsDim}">${escapeHtml(dimStr)}</td>
-          <td class="${clsMat}">${escapeHtml(materialKindStr)}</td>
-          <td class="${clsFin}">${escapeHtml(finishesStr)}</td>
-          <td class="${clsQty}">${escapeHtml(quantity)}</td>
-          <td class="${clsUnitPrice}">${escapeHtml(unitPrice)}</td>
-          <td class="${clsMatCost}">${escapeHtml(materialCostAmount)}</td>
-          <td class="${clsLabor}">${escapeHtml(laborTotalDays)}</td>
-          <td class="${clsSrc}">${escapeHtml(src)}</td>
-        </tr>`;
+        if (isWoodwork) {
+          html += `<tr data-index="${index}" class="${rowClass}">
+            <td>${index + 1}</td>
+            <td class="${clsInclude}">${escapeHtml(includeInEstimateMark)}</td>
+            <td class="${clsName}">${escapeHtml(name)}</td>
+            <td class="${clsType}">${escapeHtml(structureType)}</td>
+            <td class="${clsDim}">${escapeHtml(dimStr)}</td>
+            <td class="${clsMat}">${escapeHtml(materialStr)}</td>
+            <td class="${clsFin}">${escapeHtml(finishesStr)}</td>
+            <td class="${clsQty}">${escapeHtml(quantity)}</td>
+            <td class="${clsUnitPrice}">${escapeHtml(unitPriceDisplay)}</td>
+            <td class="${clsMatCost}">${escapeHtml(materialCostDisplay)}</td>
+            <td class="${clsLabor}">${escapeHtml(laborTotalDays)}</td>
+            <td class="${clsLaborCost}">${escapeHtml(laborCostDisplay)}</td>
+            <td class="${clsTotal}">${escapeHtml(totalDisplay)}</td>
+          </tr>`;
+        } else if (isElectrical) {
+          html += `<tr data-index="${index}" class="${rowClass}">
+            <td>${index + 1}</td>
+            <td class="${clsInclude}">${escapeHtml(includeInEstimateMark)}</td>
+            <td class="${clsName}">${escapeHtml(name)}</td>
+            <td class="${clsType}">${escapeHtml(electricalType)}</td>
+            <td class="${clsDim}">${escapeHtml(specDisplay)}</td>
+            <td class="${clsQty}">${escapeHtml(quantityDisplay)}</td>
+            <td class="${clsUnitPrice}">${escapeHtml(unitPriceDisplay)}</td>
+            <td class="${clsMatCost}">${escapeHtml(totalDisplay)}</td>
+            <td class="${clsSrc}">${escapeHtml(src)}</td>
+          </tr>`;
+        } else {
+          html += `<tr data-index="${index}" class="${rowClass}">
+            <td>${index + 1}</td>
+            <td class="${clsInclude}">${escapeHtml(includeInEstimateMark)}</td>
+            <td class="${clsName}">${escapeHtml(name)}</td>
+            <td class="${clsQty}">${escapeHtml(quantityDisplay)}</td>
+            <td class="${clsUnitPrice}">${escapeHtml(unitPriceDisplay)}</td>
+            <td class="${clsMatCost}">${escapeHtml(totalDisplay)}</td>
+            <td class="${clsSrc}">${escapeHtml(src)}</td>
+          </tr>`;
+        }
       });
 
       html += `</tbody></table>`;
-    } else {
-      html += `<div>items が見つかりませんでした。</div>`;
     }
 
     itemsView.innerHTML = html;
@@ -761,13 +1452,20 @@ function updateSourceInfoUI() {
   // 行クリック
   if (itemsView) {
     itemsView.addEventListener("click", (event) => {
-      if (selectedCategoryKey === "siteCosts") return;
       const tr = event.target.closest("tr[data-index]");
       if (!tr) return;
       const index = parseInt(tr.getAttribute("data-index"), 10);
       if (isNaN(index)) return;
 
       selectedIndex = index;
+      if (selectedCategoryKey === "siteCosts") {
+        syncSiteCostsToUI();
+        syncSiteCostsFormVisibility();
+        syncSiteCostEditorForSelection();
+        renderItemsTable();
+        return;
+      }
+
       const items = getItems();
       const item = items[index];
       if (!item) return;
@@ -785,10 +1483,8 @@ function updateSourceInfoUI() {
   // JSONタブ「反映」
   if (btnApplyItemEdit && itemEditor) {
     btnApplyItemEdit.addEventListener("click", () => {
-      if (selectedCategoryKey === "siteCosts") return alert("現場費（siteCosts）はアイテム配列ではありません。上の現場費フォームから編集してください。");
       if (selectedIndex == null) return alert("まずテーブルからアイテムを選択してください。");
-      if (!currentPayload || !Array.isArray(currentPayload[selectedCategoryKey]))
-        return alert(`現在のJSONに ${selectedCategoryKey} がありません。`);
+      if (!currentPayload) return alert("現在のJSONがありません。");
 
       let newItem;
       try {
@@ -799,15 +1495,28 @@ function updateSourceInfoUI() {
         return;
       }
 
-      currentPayload[selectedCategoryKey][selectedIndex] = newItem;
+      if (selectedCategoryKey === "siteCosts") {
+        const meta = SITE_COST_ITEMS[selectedIndex];
+        if (!meta) return alert("現場費の選択項目が見つかりません。");
+        if (!currentPayload.siteCosts || typeof currentPayload.siteCosts !== "object") currentPayload.siteCosts = {};
+        currentPayload.siteCosts[meta.key] = newItem;
+        normalizePayloadForSchema(currentPayload);
+        syncSiteCostsToUI();
+        syncSiteCostsFormVisibility();
+        syncSiteCostEditorForSelection();
+      } else {
+        if (!Array.isArray(currentPayload[selectedCategoryKey]))
+          return alert(`現在のJSONに ${selectedCategoryKey} がありません。`);
+        currentPayload[selectedCategoryKey][selectedIndex] = newItem;
+        updateFormFromItem(newItem);
+        updateFormHighlightsForSelected();
+      }
 
       if (basePayload && currentPayload) {
         userChangedPathsCurrent = collectDiffPaths(basePayload, currentPayload);
       }
 
-      updateFormFromItem(newItem);
-      updateFormHighlightsForSelected();
-      updateGlobalHighlight();
+      updateCategoryHighlight();
       renderItemsTable();
       setStatus("JSONの変更をアイテムに反映しました");
     });
@@ -850,6 +1559,14 @@ function updateSourceInfoUI() {
         if (typeof basePayloadForPrompt.nlCorrectionGlobal !== "string") {
           basePayloadForPrompt.nlCorrectionGlobal = "";
         }
+        if (typeof basePayloadForPrompt.nlCorrectionWoodworkItems !== "string") basePayloadForPrompt.nlCorrectionWoodworkItems = "";
+        if (typeof basePayloadForPrompt.nlCorrectionFloorItems !== "string") basePayloadForPrompt.nlCorrectionFloorItems = "";
+        if (typeof basePayloadForPrompt.nlCorrectionFinishingItems !== "string") basePayloadForPrompt.nlCorrectionFinishingItems = "";
+        if (typeof basePayloadForPrompt.nlCorrectionSignItems !== "string") basePayloadForPrompt.nlCorrectionSignItems = "";
+        if (typeof basePayloadForPrompt.nlCollectionSignItems !== "string") basePayloadForPrompt.nlCollectionSignItems = "";
+        if (typeof basePayloadForPrompt.nlCorrectionElectricalItems !== "string") basePayloadForPrompt.nlCorrectionElectricalItems = "";
+        if (typeof basePayloadForPrompt.nlCorrectionLeaseItems !== "string") basePayloadForPrompt.nlCorrectionLeaseItems = "";
+        if (typeof basePayloadForPrompt.nlCorrectionSiteCosts !== "string") basePayloadForPrompt.nlCorrectionSiteCosts = "";
 
         const combined =
           baseText +
@@ -954,8 +1671,10 @@ function updateSourceInfoUI() {
     if (itemFormDimW) itemFormDimW.value = "";
     if (itemFormDimD) itemFormDimD.value = "";
     if (itemFormQuantity) itemFormQuantity.value = "";
-    if (itemFormMaterials) itemFormMaterials.value = "";
-    if (itemFormFinishes) itemFormFinishes.value = "";
+    if (itemFormUnit) itemFormUnit.value = "";
+    renderMaterialsList([]);
+    renderFinishesList([]);
+    if (itemFormSignType) itemFormSignType.value = "";
     if (itemFormPriceUnitPrice) itemFormPriceUnitPrice.value = "";
     if (itemFormMaterialCostAmount) itemFormMaterialCostAmount.value = "";
     if (itemFormMaterialCostNotes) itemFormMaterialCostNotes.value = "";
@@ -963,6 +1682,13 @@ function updateSourceInfoUI() {
     if (itemFormLaborDays) itemFormLaborDays.value = "";
     if (itemFormCostAmount) itemFormCostAmount.value = "";
     if (itemFormCostNotes) itemFormCostNotes.value = "";
+    if (itemFormElectricalType) itemFormElectricalType.value = "";
+    if (itemFormIsHighPlace) itemFormIsHighPlace.checked = false;
+    if (itemFormSpecVoltage) itemFormSpecVoltage.value = "";
+    if (itemFormSpecWatt) itemFormSpecWatt.value = "";
+    if (itemFormSpecPhase) itemFormSpecPhase.value = "";
+    if (itemFormSpecBreaker) itemFormSpecBreaker.value = "";
+    if (itemFormSpecNotes) itemFormSpecNotes.value = "";
     if (itemFormNlCorrection) itemFormNlCorrection.value = "";
     if (itemFormIsBent) itemFormIsBent.checked = false;
     if (itemFormSpecialAngles) itemFormSpecialAngles.checked = false;
@@ -970,7 +1696,8 @@ function updateSourceInfoUI() {
     if (itemFormFinishAreaValue) itemFormFinishAreaValue.value = "";
     if (itemFormFinishAreaNotes) itemFormFinishAreaNotes.value = "";
     if (itemFormLaborCoefValue) itemFormLaborCoefValue.value = "";
-    if (itemFormLaborCoefNotes) itemFormLaborCoefNotes.value = "";
+      if (itemFormLaborCoefNotes) itemFormLaborCoefNotes.value = "";
+      if (itemFormSignType) itemFormSignType.value = "";
     clearFormHighlightClasses();
   }
 
@@ -978,6 +1705,7 @@ function updateSourceInfoUI() {
     if (!item) return resetForm();
 
     const isWoodwork = selectedCategoryKey === "woodworkItems";
+    const isSign = selectedCategoryKey === "signItems";
 
     if (itemFormId) itemFormId.textContent = item.id || "-";
     if (itemFormInclude) itemFormInclude.checked = !!item.includeInEstimate;
@@ -999,22 +1727,15 @@ function updateSourceInfoUI() {
     if (itemFormDimD) itemFormDimD.value = typeof dims.depth === "number" ? String(dims.depth) : "";
 
     if (itemFormQuantity) itemFormQuantity.value = typeof item.quantity === "number" ? String(item.quantity) : "";
+    if (itemFormUnit) itemFormUnit.value = !isWoodwork && typeof item.unit === "string" ? item.unit : "";
+    if (itemFormSignType) itemFormSignType.value = isSign && typeof item.signType === "string" ? item.signType : "";
 
-    if (itemFormMaterials) {
-      const materials = isWoodwork && Array.isArray(item.materials) ? item.materials : [];
-      const lines = materials
-        .map((m) => {
-          if (!m || !m.kind) return "";
-          const q = typeof m.quantity === "number" && m.quantity !== 1 ? ` x ${m.quantity}` : "";
-          return `${m.kind}${q}`;
-        })
-        .filter((s) => s.length > 0);
-      itemFormMaterials.value = lines.join("\n");
-    }
-
-    if (itemFormFinishes) {
-      const finishes = isWoodwork && Array.isArray(item.finishes) ? item.finishes : [];
-      itemFormFinishes.value = finishes.join("\n");
+    if (isWoodwork) {
+      renderMaterialsList(item.materials || []);
+      renderFinishesList(item.finishes || []);
+    } else {
+      renderMaterialsList([]);
+      renderFinishesList([]);
     }
 
     if (itemFormPriceUnitPrice) {
@@ -1063,12 +1784,28 @@ function updateSourceInfoUI() {
     const cost = !isWoodwork ? item.cost || null : null;
     if (itemFormCostAmount) itemFormCostAmount.value = cost && typeof cost.amount === "number" ? String(cost.amount) : "";
     if (itemFormCostNotes) itemFormCostNotes.value = cost?.notes || "";
+
+    if (!isWoodwork && itemFormElectricalType) {
+      itemFormElectricalType.value = typeof item.electricalType === "string" ? item.electricalType : "";
+    }
+    if (!isWoodwork && itemFormIsHighPlace) {
+      itemFormIsHighPlace.checked = !!item.isHighPlace;
+    }
+    if (!isWoodwork) {
+      const spec = item.spec || {};
+      if (itemFormSpecVoltage) itemFormSpecVoltage.value = typeof spec.voltageV === "number" ? String(spec.voltageV) : "";
+      if (itemFormSpecWatt) itemFormSpecWatt.value = typeof spec.wattW === "number" ? String(spec.wattW) : "";
+      if (itemFormSpecPhase) itemFormSpecPhase.value = typeof spec.phase === "string" ? spec.phase : "";
+      if (itemFormSpecBreaker) itemFormSpecBreaker.value = typeof spec.breakerA === "number" ? String(spec.breakerA) : "";
+      if (itemFormSpecNotes) itemFormSpecNotes.value = typeof spec.notes === "string" ? spec.notes : "";
+    }
   }
 
   function applyFormToItem(item, changedElement) {
     if (!item) return;
     const isChanged = (el) => !changedElement || changedElement === el;
     const isWoodwork = selectedCategoryKey === "woodworkItems";
+    const isSign = selectedCategoryKey === "signItems";
 
     if (itemFormInclude && isChanged(itemFormInclude)) item.includeInEstimate = !!itemFormInclude.checked;
     if (itemFormName && isChanged(itemFormName)) if (itemFormName.value !== "") item.name = itemFormName.value;
@@ -1103,41 +1840,23 @@ function updateSourceInfoUI() {
       }
     }
 
-    if (isWoodwork && itemFormMaterials && isChanged(itemFormMaterials)) {
-      const lines = (itemFormMaterials.value || "")
-        .split(/\r?\n/)
-        .map((s) => s.trim())
-        .filter((s) => s.length > 0);
-
-      item.materials = lines.length
-        ? lines.map((line) => {
-            let kind = line;
-            let qty = 1;
-            const m = line.split(/[x×]/i);
-            if (m.length >= 2) {
-              kind = m[0].trim();
-              const num = parseFloat(m[1].trim());
-              if (!isNaN(num) && num > 0) qty = num;
-            }
-            return { kind, spec: "", quantity: qty, unit: "式" };
-          })
-        : [];
+    if (!isWoodwork && itemFormUnit && isChanged(itemFormUnit)) {
+      if (itemFormUnit.value !== "") item.unit = itemFormUnit.value;
+    }
+    if (isSign && itemFormSignType && isChanged(itemFormSignType)) {
+      if (itemFormSignType.value !== "") item.signType = itemFormSignType.value;
     }
 
-    if (isWoodwork && itemFormFinishes && isChanged(itemFormFinishes)) {
-      const lines = (itemFormFinishes.value || "")
-        .split(/\r?\n/)
-        .map((s) => s.trim())
-        .filter((s) => s.length > 0);
-      item.finishes = lines;
-    }
 
     if (itemFormPriceUnitPrice && isChanged(itemFormPriceUnitPrice)) {
       if (itemFormPriceUnitPrice.value !== "") {
         const v = parseFloat(itemFormPriceUnitPrice.value);
         if (!isNaN(v)) {
-          if (!item.price) item.price = { mode: "estimate_by_model", currency: "JPY", unitPrice: v, notes: "" };
+          if (!item.price) {
+            item.price = { mode: isSign ? "override_fixed" : "estimate_by_model", currency: "JPY", unitPrice: v, notes: "" };
+          }
           else item.price.unitPrice = v;
+          if (isSign) item.price.mode = "override_fixed";
         }
       }
     }
@@ -1237,6 +1956,36 @@ function updateSourceInfoUI() {
         else item.cost.notes = itemFormCostNotes.value;
       }
     }
+
+    if (!isWoodwork && itemFormElectricalType && isChanged(itemFormElectricalType)) {
+      if (itemFormElectricalType.value !== "") item.electricalType = itemFormElectricalType.value;
+    }
+
+    if (!isWoodwork && itemFormIsHighPlace && isChanged(itemFormIsHighPlace)) {
+      item.isHighPlace = !!itemFormIsHighPlace.checked;
+    }
+
+    if (
+      !isWoodwork &&
+      (isChanged(itemFormSpecVoltage) ||
+        isChanged(itemFormSpecWatt) ||
+        isChanged(itemFormSpecPhase) ||
+        isChanged(itemFormSpecBreaker) ||
+        isChanged(itemFormSpecNotes))
+    ) {
+      const v = itemFormSpecVoltage && itemFormSpecVoltage.value !== "" ? parseFloat(itemFormSpecVoltage.value) : null;
+      const w = itemFormSpecWatt && itemFormSpecWatt.value !== "" ? parseFloat(itemFormSpecWatt.value) : null;
+      const b = itemFormSpecBreaker && itemFormSpecBreaker.value !== "" ? parseFloat(itemFormSpecBreaker.value) : null;
+      const phase = itemFormSpecPhase && itemFormSpecPhase.value !== "" ? itemFormSpecPhase.value : null;
+      const notes = (itemFormSpecNotes && itemFormSpecNotes.value) || "";
+      item.spec = {
+        voltageV: Number.isFinite(v) ? v : null,
+        wattW: Number.isFinite(w) ? w : null,
+        breakerA: Number.isFinite(b) ? b : null,
+        phase,
+        notes
+      };
+    }
   }
 
   setupFormAutoApply();
@@ -1249,8 +1998,8 @@ function updateSourceInfoUI() {
       itemFormDimW,
       itemFormDimD,
       itemFormQuantity,
-      itemFormMaterials,
-      itemFormFinishes,
+      itemFormUnit,
+      itemFormSignType,
       itemFormPriceUnitPrice,
       itemFormMaterialCostAmount,
       itemFormMaterialCostNotes,
@@ -1258,6 +2007,13 @@ function updateSourceInfoUI() {
       itemFormLaborDays,
       itemFormCostAmount,
       itemFormCostNotes,
+      itemFormElectricalType,
+      itemFormIsHighPlace,
+      itemFormSpecVoltage,
+      itemFormSpecWatt,
+      itemFormSpecPhase,
+      itemFormSpecBreaker,
+      itemFormSpecNotes,
       itemFormNlCorrection, // ★移動後も自動反映
       itemFormIsBent,
       itemFormSpecialAngles,
@@ -1288,11 +2044,97 @@ function updateSourceInfoUI() {
         if (basePayload && currentPayload) userChangedPathsCurrent = collectDiffPaths(basePayload, currentPayload);
 
         renderItemsTable();
-        updateGlobalHighlight();
+        updateCategoryHighlight();
         updateFormHighlightsForSelected();
         setStatus("フォーム変更を反映しました");
       });
     });
+  }
+
+  function applyMaterialsFromUI() {
+    if (selectedIndex == null) return;
+    if (selectedCategoryKey !== "woodworkItems") return;
+    if (!currentPayload || !Array.isArray(currentPayload[selectedCategoryKey])) return;
+
+    normalizePayloadForSchema(currentPayload);
+    const item = currentPayload[selectedCategoryKey][selectedIndex];
+    if (!item) return;
+
+    item.materials = readMaterialsList();
+
+    if (itemEditor) itemEditor.value = JSON.stringify(item, null, 2);
+    if (basePayload && currentPayload) userChangedPathsCurrent = collectDiffPaths(basePayload, currentPayload);
+    renderItemsTable();
+    updateCategoryHighlight();
+    updateFormHighlightsForSelected();
+    setStatus("材料を反映しました");
+  }
+
+  function applyFinishesFromUI() {
+    if (selectedIndex == null) return;
+    if (selectedCategoryKey !== "woodworkItems") return;
+    if (!currentPayload || !Array.isArray(currentPayload[selectedCategoryKey])) return;
+
+    normalizePayloadForSchema(currentPayload);
+    const item = currentPayload[selectedCategoryKey][selectedIndex];
+    if (!item) return;
+
+    const existing = Array.isArray(item.finishes) ? item.finishes : [];
+    const next = readFinishesList();
+    item.finishes = next.map((entry, idx) => {
+      const prev = existing[idx] && typeof existing[idx] === "object" ? existing[idx] : {};
+      if (!entry.surfaceArea && prev.surfaceArea) entry.surfaceArea = prev.surfaceArea;
+      if (!entry.notes && typeof prev.notes === "string") entry.notes = prev.notes;
+      if (entry.surfaceArea && prev.surfaceArea && typeof prev.surfaceArea.notes === "string") {
+        entry.surfaceArea.notes = entry.surfaceArea.notes || prev.surfaceArea.notes;
+      }
+      return entry;
+    });
+
+    if (itemEditor) itemEditor.value = JSON.stringify(item, null, 2);
+    if (basePayload && currentPayload) userChangedPathsCurrent = collectDiffPaths(basePayload, currentPayload);
+    renderItemsTable();
+    updateCategoryHighlight();
+    updateFormHighlightsForSelected();
+    setStatus("仕上げを反映しました");
+  }
+
+  if (itemFormMaterialsAdd) {
+    itemFormMaterialsAdd.addEventListener("click", () => {
+      if (!itemFormMaterialsList) return;
+      itemFormMaterialsList.appendChild(createMaterialRow({ kind: "", spec: "", quantity: 1, unit: "" }));
+    });
+  }
+
+  if (itemFormFinishesAdd) {
+    itemFormFinishesAdd.addEventListener("click", () => {
+      if (!itemFormFinishesList) return;
+      itemFormFinishesList.appendChild(createFinishRow({ kind: "", spec: "", surfaceAreaValue: null, surfaceAreaUnit: "" }));
+    });
+  }
+
+  if (itemFormMaterialsList) {
+    itemFormMaterialsList.addEventListener("click", (e) => {
+      const btn = e.target.closest("button[data-action=\"remove-material\"]");
+      if (!btn) return;
+    const row = btn.closest("[data-material-row]");
+    if (row) row.remove();
+    applyMaterialsFromUI();
+    });
+    itemFormMaterialsList.addEventListener("input", applyMaterialsFromUI);
+    itemFormMaterialsList.addEventListener("change", applyMaterialsFromUI);
+  }
+
+  if (itemFormFinishesList) {
+    itemFormFinishesList.addEventListener("click", (e) => {
+      const btn = e.target.closest("button[data-action=\"remove-finish\"]");
+      if (!btn) return;
+    const row = btn.closest("[data-finish-row]");
+    if (row) row.remove();
+    applyFinishesFromUI();
+    });
+    itemFormFinishesList.addEventListener("input", applyFinishesFromUI);
+    itemFormFinishesList.addEventListener("change", applyFinishesFromUI);
   }
 
   function hasChangeInSet(set, prefix) {
@@ -1319,8 +2161,10 @@ function updateSourceInfoUI() {
       itemFormDimW,
       itemFormDimD,
       itemFormQuantity,
-      itemFormMaterials,
-      itemFormFinishes,
+      itemFormUnit,
+      itemFormMaterialsList,
+      itemFormFinishesList,
+      itemFormSignType,
       itemFormPriceUnitPrice,
       itemFormMaterialCostAmount,
       itemFormMaterialCostNotes,
@@ -1328,6 +2172,13 @@ function updateSourceInfoUI() {
       itemFormLaborDays,
       itemFormCostAmount,
       itemFormCostNotes,
+      itemFormElectricalType,
+      itemFormIsHighPlace,
+      itemFormSpecVoltage,
+      itemFormSpecWatt,
+      itemFormSpecPhase,
+      itemFormSpecBreaker,
+      itemFormSpecNotes,
       itemFormNlCorrection,
       itemFormIsBent,
       itemFormSpecialAngles,
@@ -1347,6 +2198,7 @@ function updateSourceInfoUI() {
     clearFormHighlightClasses();
     if (!isHighlightEnabled()) return;
     if (selectedIndex == null) return;
+    if (selectedCategoryKey === "siteCosts") return;
 
     const isWoodwork = selectedCategoryKey === "woodworkItems";
     const idx = selectedIndex;
@@ -1369,10 +2221,40 @@ function updateSourceInfoUI() {
       apply(itemFormDimD, `${basePath}/dimensions/depth`);
     }
     apply(itemFormQuantity, `${basePath}/quantity`);
+    if (!isWoodwork) apply(itemFormUnit, `${basePath}/unit`);
     if (isWoodwork) {
-      apply(itemFormMaterials, `${basePath}/materials`);
-      apply(itemFormFinishes, `${basePath}/finishes`);
+      if (itemFormMaterialsList) {
+        itemFormMaterialsList.querySelectorAll("[data-material-row]").forEach((row) => {
+          const idx = row.dataset.index;
+          if (typeof idx !== "string") return;
+          row.querySelectorAll("[data-field]").forEach((fieldEl) => {
+            fieldEl.classList.remove("user-changed-current", "user-changed-previous", "api-changed");
+            const field = fieldEl.dataset.field;
+            if (!field) return;
+            const prefix = `${basePath}/materials/${idx}/${field}`;
+            if (hasChangeInSet(userChangedPathsCurrent, prefix)) fieldEl.classList.add("user-changed-current");
+            else if (hasChangeInSet(userChangedPathsPrevious, prefix)) fieldEl.classList.add("user-changed-previous");
+            else if (hasChangeInSet(apiChangedPaths, prefix)) fieldEl.classList.add("api-changed");
+          });
+        });
+      }
+      if (itemFormFinishesList) {
+        itemFormFinishesList.querySelectorAll("[data-finish-row]").forEach((row) => {
+          const idx = row.dataset.index;
+          if (typeof idx !== "string") return;
+          row.querySelectorAll("[data-field]").forEach((fieldEl) => {
+            fieldEl.classList.remove("user-changed-current", "user-changed-previous", "api-changed");
+            const field = fieldEl.dataset.field;
+            if (!field) return;
+            const prefix = `${basePath}/finishes/${idx}/${field}`;
+            if (hasChangeInSet(userChangedPathsCurrent, prefix)) fieldEl.classList.add("user-changed-current");
+            else if (hasChangeInSet(userChangedPathsPrevious, prefix)) fieldEl.classList.add("user-changed-previous");
+            else if (hasChangeInSet(apiChangedPaths, prefix)) fieldEl.classList.add("api-changed");
+          });
+        });
+      }
     }
+    if (selectedCategoryKey === "signItems") apply(itemFormSignType, `${basePath}/signType`);
     apply(itemFormPriceUnitPrice, `${basePath}/price/unitPrice`);
     if (isWoodwork) {
       apply(itemFormMaterialCostAmount, `${basePath}/materialCost`);
@@ -1393,6 +2275,14 @@ function updateSourceInfoUI() {
       apply(itemFormFinishAreaNotes, `${basePath}/finishSurfaceArea`);
       apply(itemFormLaborCoefValue, `${basePath}/laborCoefficient`);
       apply(itemFormLaborCoefNotes, `${basePath}/laborCoefficient`);
+    } else if (selectedCategoryKey === "electricalItems") {
+      apply(itemFormElectricalType, `${basePath}/electricalType`);
+      apply(itemFormIsHighPlace, `${basePath}/isHighPlace`);
+      apply(itemFormSpecVoltage, `${basePath}/spec/voltageV`);
+      apply(itemFormSpecWatt, `${basePath}/spec/wattW`);
+      apply(itemFormSpecPhase, `${basePath}/spec/phase`);
+      apply(itemFormSpecBreaker, `${basePath}/spec/breakerA`);
+      apply(itemFormSpecNotes, `${basePath}/spec/notes`);
     }
   }
 
@@ -1501,6 +2391,14 @@ function updateSourceInfoUI() {
     if (payload.stage === "estimate") payload.stage = "ready_for_estimation";
     if (typeof payload.extractedAt !== "string") payload.extractedAt = new Date().toISOString();
     if (typeof payload.nlCorrectionGlobal !== "string") payload.nlCorrectionGlobal = "";
+    if (typeof payload.nlCorrectionWoodworkItems !== "string") payload.nlCorrectionWoodworkItems = "";
+    if (typeof payload.nlCorrectionFloorItems !== "string") payload.nlCorrectionFloorItems = "";
+    if (typeof payload.nlCorrectionFinishingItems !== "string") payload.nlCorrectionFinishingItems = "";
+    if (typeof payload.nlCorrectionSignItems !== "string") payload.nlCorrectionSignItems = "";
+    if (typeof payload.nlCollectionSignItems !== "string") payload.nlCollectionSignItems = "";
+    if (typeof payload.nlCorrectionElectricalItems !== "string") payload.nlCorrectionElectricalItems = "";
+    if (typeof payload.nlCorrectionLeaseItems !== "string") payload.nlCorrectionLeaseItems = "";
+    if (typeof payload.nlCorrectionSiteCosts !== "string") payload.nlCorrectionSiteCosts = "";
 
     // legacy: upholsteryItems -> finishingItems
     if (Array.isArray(payload.upholsteryItems) && !Array.isArray(payload.finishingItems)) {
@@ -1508,7 +2406,7 @@ function updateSourceInfoUI() {
     }
     if ("upholsteryItems" in payload) delete payload.upholsteryItems;
 
-    const categoryKeys = ["woodworkItems", "floorItems", "finishingItems", "electricalItems", "leaseItems"];
+    const categoryKeys = ["woodworkItems", "floorItems", "finishingItems", "signItems", "electricalItems", "leaseItems"];
     const hasAnyCategoryArray = categoryKeys.some((k) => Array.isArray(payload[k]));
 
     if (Array.isArray(payload.items)) {
@@ -1559,6 +2457,68 @@ function updateSourceInfoUI() {
       payload.siteCosts = {};
     }
 
+    const normalizeCostObject = (entry) => {
+      const base = entry && typeof entry === "object" && !Array.isArray(entry) ? entry : {};
+      const nested = base.cost && typeof base.cost === "object" && !Array.isArray(base.cost) ? base.cost : null;
+      const amount = typeof base.amount === "number" ? base.amount : nested && typeof nested.amount === "number" ? nested.amount : 0;
+      const currency =
+        typeof base.currency === "string" ? base.currency : nested && typeof nested.currency === "string" ? nested.currency : "JPY";
+      const notes =
+        nested && typeof nested.notes === "string" ? nested.notes : typeof base.notes === "string" ? base.notes : "";
+      return { amount, currency, notes };
+    };
+
+    const normalizeLaborSetup = (entry) => {
+      const base = entry && typeof entry === "object" && !Array.isArray(entry) ? entry : {};
+      return {
+        people: typeof base.people === "number" ? base.people : 0,
+        days: typeof base.days === "number" ? base.days : 0,
+        notes: typeof base.notes === "string" ? base.notes : ""
+      };
+    };
+
+    const normalizeTransportLeg = (entry) => {
+      const base = entry && typeof entry === "object" && !Array.isArray(entry) ? entry : {};
+      return {
+        vehicleType: typeof base.vehicleType === "string" ? base.vehicleType : "",
+        vehicles: typeof base.vehicles === "number" ? base.vehicles : 0,
+        days: typeof base.days === "number" ? base.days : 0,
+        unitPrice: typeof base.unitPrice === "number" ? base.unitPrice : 0,
+        cost: normalizeCostObject(base),
+        notes: typeof base.notes === "string" ? base.notes : ""
+      };
+    };
+
+    const laborBase = payload.siteCosts.laborCost && typeof payload.siteCosts.laborCost === "object" ? payload.siteCosts.laborCost : {};
+    payload.siteCosts.laborCost = {
+      unitPrice: typeof laborBase.unitPrice === "number" ? laborBase.unitPrice : 0,
+      setup: normalizeLaborSetup(laborBase.setup),
+      teardown: normalizeLaborSetup(laborBase.teardown),
+      cost: normalizeCostObject(laborBase),
+      notes: typeof laborBase.notes === "string" ? laborBase.notes : ""
+    };
+
+    const transportBase =
+      payload.siteCosts.transportCost && typeof payload.siteCosts.transportCost === "object" ? payload.siteCosts.transportCost : {};
+    payload.siteCosts.transportCost = {
+      setup: Array.isArray(transportBase.setup) ? transportBase.setup.map(normalizeTransportLeg) : [],
+      teardown: Array.isArray(transportBase.teardown) ? transportBase.teardown.map(normalizeTransportLeg) : [],
+      cost: normalizeCostObject(transportBase),
+      notes: typeof transportBase.notes === "string" ? transportBase.notes : ""
+    };
+
+    const wasteBase =
+      payload.siteCosts.wasteDisposalCost && typeof payload.siteCosts.wasteDisposalCost === "object"
+        ? payload.siteCosts.wasteDisposalCost
+        : {};
+    payload.siteCosts.wasteDisposalCost = {
+      vehicles: typeof wasteBase.vehicles === "number" ? wasteBase.vehicles : 0,
+      unitPrice: typeof wasteBase.unitPrice === "number" ? wasteBase.unitPrice : 0,
+      cost: normalizeCostObject(wasteBase),
+      notes: typeof wasteBase.notes === "string" ? wasteBase.notes : ""
+    };
+    if (typeof payload.siteCosts.notes !== "string") payload.siteCosts.notes = "";
+
     const ensureCost = (obj, key) => {
       if (!obj[key] || typeof obj[key] !== "object" || Array.isArray(obj[key])) {
         obj[key] = {};
@@ -1567,10 +2527,6 @@ function updateSourceInfoUI() {
       if (typeof obj[key].currency !== "string") obj[key].currency = "JPY";
       if (typeof obj[key].notes !== "string") obj[key].notes = "";
     };
-    ensureCost(payload.siteCosts, "laborCost");
-    ensureCost(payload.siteCosts, "transportCost");
-    ensureCost(payload.siteCosts, "wasteDisposalCost");
-    if (typeof payload.siteCosts.notes !== "string") payload.siteCosts.notes = "";
 
     const normalizeBaseFields = (it) => {
       if (!it || typeof it !== "object") return;
@@ -1618,6 +2574,44 @@ function updateSourceInfoUI() {
 
       if (!Array.isArray(it.materials)) it.materials = [];
       if (!Array.isArray(it.finishes)) it.finishes = [];
+
+      const normalizeMaterialSpec = (entry) => {
+        if (typeof entry === "string") {
+          return { kind: entry, spec: "", quantity: 1, unit: "式" };
+        }
+        const base = entry && typeof entry === "object" ? entry : {};
+        return {
+          kind: typeof base.kind === "string" ? base.kind : "",
+          spec: typeof base.spec === "string" ? base.spec : "",
+          quantity: typeof base.quantity === "number" && base.quantity > 0 ? base.quantity : 1,
+          unit: typeof base.unit === "string" ? base.unit : "式"
+        };
+      };
+
+      const normalizeFinishSpec = (entry) => {
+        if (typeof entry === "string") {
+          return { kind: entry, spec: "", surfaceArea: { value: 0.01, unit: "m²", notes: "" }, notes: "" };
+        }
+        const base = entry && typeof entry === "object" ? entry : {};
+        const surfaceAreaBase = base.surfaceArea && typeof base.surfaceArea === "object" ? base.surfaceArea : {};
+        const surfaceArea =
+          typeof base.quantity === "number"
+            ? { value: base.quantity, unit: "m²", notes: "" }
+            : {
+                value: typeof surfaceAreaBase.value === "number" ? surfaceAreaBase.value : 0.01,
+                unit: typeof surfaceAreaBase.unit === "string" ? surfaceAreaBase.unit : "m²",
+                notes: typeof surfaceAreaBase.notes === "string" ? surfaceAreaBase.notes : ""
+              };
+        return {
+          kind: typeof base.kind === "string" ? base.kind : "",
+          spec: typeof base.spec === "string" ? base.spec : "",
+          surfaceArea,
+          notes: typeof base.notes === "string" ? base.notes : ""
+        };
+      };
+
+      it.materials = it.materials.map(normalizeMaterialSpec).filter((m) => m.kind);
+      it.finishes = it.finishes.map(normalizeFinishSpec).filter((f) => f.kind);
 
       if (!it.finishSurfaceArea || typeof it.finishSurfaceArea !== "object") it.finishSurfaceArea = {};
       if (typeof it.finishSurfaceArea.value !== "number") it.finishSurfaceArea.value = 0.01;
@@ -1700,10 +2694,24 @@ function updateSourceInfoUI() {
       if (!("spec" in it)) it.spec = null;
     };
 
+    const normalizeSignItem = (it) => {
+      if (!it || typeof it !== "object") return;
+      normalizeQuantifiedItem(it);
+      if (typeof it.signType !== "string") it.signType = "その他";
+      if (!it.price || typeof it.price !== "object") {
+        it.price = { mode: "override_fixed", currency: "JPY", unitPrice: 0, notes: "" };
+      }
+      if (typeof it.price.mode !== "string" || it.price.mode !== "override_fixed") it.price.mode = "override_fixed";
+      if (typeof it.price.currency !== "string") it.price.currency = "JPY";
+      if (typeof it.price.unitPrice !== "number") it.price.unitPrice = 0;
+      if (typeof it.price.notes !== "string") it.price.notes = "";
+    };
+
     payload.woodworkItems.forEach(normalizeWoodworkItem);
     ["floorItems", "finishingItems", "leaseItems"].forEach((k) => {
       payload[k].forEach(normalizeQuantifiedItem);
     });
+    payload.signItems.forEach(normalizeSignItem);
     payload.electricalItems.forEach(normalizeElectricalItem);
   }
 
@@ -1771,6 +2779,16 @@ function updateSourceInfoUI() {
       };
     }
 
+    if (categoryKey === "signItems") {
+      return {
+        ...base,
+        unit: "式",
+        cost: { amount: 0, currency: "JPY", notes: "" },
+        signType: "その他",
+        price: { mode: "override_fixed", currency: "JPY", unitPrice: 0, notes: "" }
+      };
+    }
+
     return {
       ...base,
       unit: "式",
@@ -1779,11 +2797,13 @@ function updateSourceInfoUI() {
   }
 
   // 初期表示
-  syncNlGlobalToUI();
+  syncNlCategoryToUI();
   updateSourceInfoUI();
-  updateGlobalHighlight();
+  updateCategoryHighlight();
   renderCategoryTabs();
   setFormModeForCategory();
   syncSiteCostsToUI();
+  syncSiteCostsFormVisibility();
+  syncSiteCostEditorForSelection();
   renderItemsTable();
 });

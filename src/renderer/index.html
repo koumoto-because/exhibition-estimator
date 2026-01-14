@@ -124,6 +124,13 @@
         margin-bottom: 8px;
       }
 
+      #items-view thead th {
+        position: sticky;
+        top: 0;
+        background: #f0f0f0;
+        z-index: 1;
+      }
+
       #item-editor-container {
         flex: 1 1 auto;
         border-top: 1px solid #ddd;
@@ -168,11 +175,220 @@
         min-width: 120px;
       }
 
+      .repeat-list {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        width: 100%;
+      }
+
+      .repeat-row {
+        display: flex;
+        gap: 6px;
+        align-items: center;
+        width: 100%;
+      }
+
+      .repeat-row input,
+      .repeat-row select {
+        flex: 0 0 auto;
+      }
+
+      .repeat-row .repeat-kind {
+        width: 140px;
+      }
+
+      .repeat-row .repeat-spec {
+        width: 200px;
+      }
+
+      .repeat-row .repeat-qty {
+        width: 90px;
+      }
+
+      .repeat-row .repeat-unit {
+        width: 80px;
+      }
+
+      .sitecosts-block {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        margin-bottom: 8px;
+      }
+
+      .sitecosts-drawer summary {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        cursor: pointer;
+        font-weight: 400;
+        list-style: none;
+      }
+
+      .sitecosts-drawer summary::-webkit-details-marker {
+        display: none;
+      }
+
+      .sitecosts-drawer summary::before {
+        content: "▶";
+        display: inline-block;
+        font-size: 12px;
+        margin-right: 2px;
+      }
+
+      .sitecosts-drawer[open] summary::before {
+        content: "▼";
+      }
+
+      .sitecosts-summary-inner {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+
+      .sitecosts-cost-inline {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        flex-wrap: wrap;
+      }
+
+      .sitecosts-pair {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+      }
+
+      .sitecosts-row label {
+        min-width: auto;
+      }
+
+      .sitecosts-labor-grid {
+        display: grid;
+        grid-template-columns: 64px minmax(120px, 1fr) minmax(120px, 1fr);
+        gap: 8px;
+        align-items: center;
+      }
+
+      .sitecosts-labor-grid label,
+      .sitecosts-labor-grid span {
+        font-size: 12px;
+      }
+
+      .sitecosts-transport-grid {
+        display: grid;
+        grid-template-columns: minmax(80px, 1.4fr) minmax(60px, 0.8fr) minmax(60px, 0.8fr) minmax(80px, 1fr) 56px;
+        gap: 8px;
+        align-items: center;
+      }
+
+      .sitecosts-transport-grid.header {
+        font-size: 11px;
+        color: #555;
+        font-weight: 600;
+      }
+
+      .sitecosts-transport-grid input {
+        width: 100%;
+      }
+
+      .sitecosts-drawer {
+        background: transparent;
+        border: none;
+        padding: 0;
+        margin: 6px 0;
+      }
+
+      .sitecosts-drawer-body {
+        background: #f8f8f8;
+        border: 1px solid #e0e0e0;
+        border-radius: 0;
+        padding: 6px;
+        margin-top: 4px;
+      }
+
+      .sitecosts-drawer input[type="text"],
+      .sitecosts-drawer input[type="number"] {
+        flex: 0 1 auto;
+      }
+
+      .item-form-spec {
+        gap: 8px;
+      }
+
+      .item-form-spec > label {
+        min-width: 120px;
+      }
+
+      .spec-pair {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+      }
+
+      .spec-pair label {
+        min-width: auto;
+      }
+
+      .spec-input {
+        width: 10ch;
+      }
+
+      .spec-unit {
+        font-size: 12px;
+        color: #555;
+      }
+
+      body[data-category]:not([data-category="woodworkItems"]) [data-woodwork-only] {
+        display: none !important;
+      }
+
+      body[data-category="woodworkItems"] [data-generic-only] {
+        display: none !important;
+      }
+
+      body[data-category]:not([data-category="electricalItems"]) [data-electrical-only] {
+        display: none !important;
+      }
+
+      body[data-category]:not([data-category="signItems"]) [data-sign-only] {
+        display: none !important;
+      }
+
+      .nl-category {
+        display: none;
+      }
+
+      body[data-category="woodworkItems"] .nl-woodwork,
+      body[data-category="floorItems"] .nl-floor,
+      body[data-category="finishingItems"] .nl-finishing,
+      body[data-category="signItems"] .nl-sign,
+      body[data-category="electricalItems"] .nl-electrical,
+      body[data-category="leaseItems"] .nl-lease,
+      body[data-category="siteCosts"] .nl-sitecosts {
+        display: block;
+      }
+
+      body[data-category="siteCosts"] #item-form-fields {
+        display: none;
+      }
+
+      body:not([data-category="siteCosts"]) #site-costs-section {
+        display: none;
+      }
+
       .item-form-row input[type="text"],
       .item-form-row input[type="number"],
       .item-form-row select,
       .item-form-row textarea {
         flex: 1;
+      }
+
+      .item-form-row .repeat-row input,
+      .item-form-row .repeat-row select {
+        flex: 0 0 auto;
       }
 
       .inline-note {
@@ -185,6 +401,13 @@
         border-radius: 999px;
         border: 1px solid #ccc;
         overflow: hidden;
+        margin-top: 4px;
+      }
+
+      .tab-bar {
+        display: flex;
+        align-items: center;
+        gap: 8px;
         margin-top: 4px;
       }
 
@@ -239,12 +462,6 @@
         gap: 12px;
       }
 
-      /* nlCorrectionGlobal 専用 */
-      #nl-global {
-        height: 90px;
-        font-family: Menlo, Monaco, Consolas, monospace;
-        font-size: 12px;
-      }
     </style>
   </head>
   <body>
@@ -302,9 +519,6 @@
 
             <div style="margin-top: 4px; display: flex; gap: 4px; flex-wrap: wrap;">
               <button id="btn-import-json">JSONを取り込む</button>
-              <button id="btn-generate-diff">
-                差分JSONを生成して「更新プロンプト」にセット
-              </button>
               <button id="btn-restore-state" disabled>
                 ロールバック(UNDO)
               </button>
@@ -354,49 +568,71 @@
                 テーブル行をクリック → 右下フォームを編集すると即座に反映されます。<br />
                 濃い緑＝現在ラウンドでの手動編集 / 薄い緑＝前ラウンドの手動編集 / 黄＝ChatGPT側での変更
               </p>
-              <div id="category-tabs" class="tabs" style="margin-top: 6px;"></div>
+              <div class="tab-bar" style="margin-top: 6px;">
+                <div id="category-tabs" class="tabs"></div>
+                <button id="btn-generate-diff" type="button">
+                  差分JSONを生成して「更新プロンプト」にセット
+                </button>
+              </div>
             </div>
 
-            <!-- nlCorrectionGlobal -->
+            <!-- nlCorrection per category -->
             <div class="section" style="border-top: 1px solid #eee;">
-              <h2>全体修正指示（nlCorrectionGlobal）</h2>
+              <h2>カテゴリ修正指示</h2>
               <p style="font-size: 11px; margin: 2px 0 4px;">
-                抽出全体に対する自然言語の修正指示です。入力すると即時にJSONへ反映され、差分バッチにも含まれます。
+                各カテゴリ全体に対する自然言語の修正指示です。入力すると即時にJSONへ反映されます。
               </p>
               <textarea
-                id="nl-global"
-                placeholder="例: 全体の壁パネルはH=2800で統一 / 図面右側の什器群を除外 など"
+                id="nl-woodwork"
+                class="nl-category nl-woodwork"
+                placeholder="木工造作物の修正指示"
+                spellcheck="false"
+              ></textarea>
+              <textarea
+                id="nl-floor"
+                class="nl-category nl-floor"
+                placeholder="床の修正指示"
+                spellcheck="false"
+              ></textarea>
+              <textarea
+                id="nl-finishing"
+                class="nl-category nl-finishing"
+                placeholder="表装の修正指示"
+                spellcheck="false"
+              ></textarea>
+              <textarea
+                id="nl-sign"
+                class="nl-category nl-sign"
+                placeholder="サインの修正指示"
+                spellcheck="false"
+              ></textarea>
+              <textarea
+                id="nl-electrical"
+                class="nl-category nl-electrical"
+                placeholder="電気の修正指示"
+                spellcheck="false"
+              ></textarea>
+              <textarea
+                id="nl-lease"
+                class="nl-category nl-lease"
+                placeholder="リースの修正指示"
+                spellcheck="false"
+              ></textarea>
+              <textarea
+                id="nl-sitecosts"
+                class="nl-category nl-sitecosts"
+                placeholder="現場費（siteCosts）の修正指示"
                 spellcheck="false"
               ></textarea>
 
-              <div style="margin-top: 6px; display:flex; gap:6px; flex-wrap: wrap; align-items:center;">
-                <button id="btn-add-empty-item">空の項目を追加（手動追加）</button>
-                <span class="inline-note">
-                  ※追加後は下の「フォーム編集」で入力してください（source="user" / id自動採番）
-                </span>
-              </div>
-            </div>
-
-            <div class="section" id="site-costs-section" style="border-top: 1px solid #eee;">
-              <h2>現場費（siteCosts）</h2>
-              <div class="item-form-row">
-                <label>人工費</label>
-                <input id="sitecosts-labor-amount" type="number" step="1" placeholder="金額(JPY)" style="max-width: 140px;" />
-                <input id="sitecosts-labor-notes" type="text" placeholder="メモ" />
-              </div>
-              <div class="item-form-row">
-                <label>運搬費</label>
-                <input id="sitecosts-transport-amount" type="number" step="1" placeholder="金額(JPY)" style="max-width: 140px;" />
-                <input id="sitecosts-transport-notes" type="text" placeholder="メモ" />
-              </div>
-              <div class="item-form-row">
-                <label>残材処理費</label>
-                <input id="sitecosts-waste-amount" type="number" step="1" placeholder="金額(JPY)" style="max-width: 140px;" />
-                <input id="sitecosts-waste-notes" type="text" placeholder="メモ" />
-              </div>
             </div>
 
             <div id="items-view"></div>
+            <div id="items-controls" style="margin-top: 6px; display:flex; gap:6px; align-items:center;">
+              <button id="btn-item-add" type="button">+</button>
+              <button id="btn-item-remove" type="button">-</button>
+              <span class="inline-note">※追加後は下の「フォーム編集」で入力してください（source="user" / id自動採番）</span>
+            </div>
 
             <div id="item-editor-container">
               <div style="margin-bottom: 4px; font-size: 12px;">
@@ -410,17 +646,20 @@
               </div>
 
               <!-- タブ切り替え：フォーム / JSON -->
-              <div class="tabs">
-                <button id="tab-form" class="tab-btn active" type="button">
-                  フォーム編集
-                </button>
-                <button id="tab-json" class="tab-btn" type="button">
-                  JSON編集
-                </button>
+              <div class="tab-bar">
+                <div class="tabs">
+                  <button id="tab-form" class="tab-btn active" type="button">
+                    フォーム編集
+                  </button>
+                  <button id="tab-json" class="tab-btn" type="button">
+                    JSON編集
+                  </button>
+                </div>
               </div>
 
               <!-- フォームタブ -->
               <div class="tab-content" id="tab-content-form">
+                <div id="item-form-fields">
                 <div class="item-form-row">
                   <label>ID</label>
                   <span id="item-form-id" style="font-size: 11px; color: #555;">-</span>
@@ -437,6 +676,98 @@
                 <div class="item-form-row">
                   <label for="item-form-name">名称(name)</label>
                   <input id="item-form-name" type="text" />
+                </div>
+
+                <div class="item-form-row" data-sign-only>
+                  <label for="item-form-sign-type">種別</label>
+                  <select id="item-form-sign-type">
+                    <option value="">（未設定）</option>
+                    <option value="カッティングシート">カッティングシート</option>
+                    <option value="抜き行灯">抜き行灯</option>
+                    <option value="チャネルサイン">チャネルサイン</option>
+                    <option value="バルーン">バルーン</option>
+                    <option value="その他">その他</option>
+                  </select>
+                </div>
+
+                <div class="item-form-row" data-electrical-only>
+                  <label for="item-form-electrical-type">種別</label>
+                  <select id="item-form-electrical-type">
+                    <option value="">（未設定）</option>
+                    <option value="lighting">照明</option>
+                    <option value="panelboard">分電盤</option>
+                    <option value="outlet">コンセント</option>
+                    <option value="wiring">配線</option>
+                    <option value="switch">スイッチ</option>
+                    <option value="labor">人工</option>
+                    <option value="other">その他</option>
+                  </select>
+                </div>
+
+                <div class="item-form-row item-form-spec" data-electrical-only>
+                  <label>仕様</label>
+                  <span class="spec-pair">
+                    <label>電圧</label>
+                    <input id="item-form-spec-voltage" class="spec-input" type="number" step="1" placeholder="V" />
+                    <span class="spec-unit">V</span>
+                  </span>
+                  <span class="spec-pair">
+                    <label>電力</label>
+                    <input id="item-form-spec-watt" class="spec-input" type="number" step="1" placeholder="W" />
+                    <span class="spec-unit">W</span>
+                  </span>
+                  <span class="spec-pair">
+                    <label>位相</label>
+                    <select id="item-form-spec-phase" class="spec-input">
+                      <option value="">未設定</option>
+                      <option value="single">単相</option>
+                      <option value="three">三相</option>
+                    </select>
+                  </span>
+                  <span class="spec-pair">
+                    <label>定格電流</label>
+                    <input id="item-form-spec-breaker" class="spec-input" type="number" step="1" placeholder="A" />
+                    <span class="spec-unit">A</span>
+                  </span>
+                </div>
+
+                <div class="item-form-row" data-electrical-only>
+                  <label>仕様メモ</label>
+                  <input id="item-form-spec-notes" type="text" placeholder="spec.notes" />
+                </div>
+
+                <div class="item-form-row">
+                  <label for="item-form-quantity">数量(quantity)</label>
+                  <input id="item-form-quantity" type="number" step="1" min="1" placeholder="数量" style="max-width: 100px;" />
+                  <select id="item-form-unit" data-generic-only style="max-width: 120px;">
+                    <option value="">（未設定）</option>
+                    <option value="個">個</option>
+                    <option value="台">台</option>
+                    <option value="式">式</option>
+                    <option value="m">m</option>
+                    <option value="m²">m²</option>
+                    <option value="m³">m³</option>
+                    <option value="本">本</option>
+                    <option value="枚">枚</option>
+                    <option value="人時">人時</option>
+                    <option value="人日">人日</option>
+                  </select>
+                </div>
+
+                <div class="item-form-row">
+                  <label for="item-form-price-unitprice">単価(price.unitPrice)</label>
+                  <input id="item-form-price-unitprice" type="number" step="1" placeholder="数値のみ, JPY" />
+                </div>
+
+                <div class="item-form-row" data-generic-only>
+                  <label>費用(cost.amount/notes)</label>
+                  <input id="item-form-cost-amount" type="number" step="1" placeholder="金額(JPY)" style="max-width: 140px;" />
+                  <input id="item-form-cost-notes" type="text" placeholder="根拠メモ(任意)" />
+                </div>
+
+                <div class="item-form-row" data-electrical-only>
+                  <label for="item-form-is-high-place">高所作業(isHighPlace)</label>
+                  <input id="item-form-is-high-place" type="checkbox" />
                 </div>
 
                 <div class="item-form-row" data-woodwork-only>
@@ -464,43 +795,24 @@
                   <input id="item-form-dim-d" type="number" step="1" placeholder="D" style="width: 60px;" />
                 </div>
 
-                <div class="item-form-row">
-                  <label for="item-form-quantity">数量(quantity)</label>
-                  <input id="item-form-quantity" type="number" step="1" min="1" placeholder="数量" style="max-width: 100px;" />
+                <div class="item-form-row" data-woodwork-only>
+                  <label>材料</label>
+                </div>
+                <div class="item-form-row" data-woodwork-only>
+                  <div id="item-form-materials-list" class="repeat-list"></div>
+                </div>
+                <div class="item-form-row" data-woodwork-only>
+                  <button id="item-form-materials-add" type="button">+ 材料を追加</button>
                 </div>
 
                 <div class="item-form-row" data-woodwork-only>
-                  <label for="item-form-materials">材料(materials.kind / quantity)</label>
+                  <label>仕上げ</label>
                 </div>
                 <div class="item-form-row" data-woodwork-only>
-                  <textarea
-                    id="item-form-materials"
-                    rows="3"
-                    style="width: 100%;"
-                    placeholder="1行につき1種類（kind x quantity）で入力：
-小割 x 3
-ベニヤ x 2
-ラワンランバ x 1"
-                  ></textarea>
-                </div>
-
-                <div class="item-form-row" data-woodwork-only>
-                  <label for="item-form-finishes">仕上げ(finishes, 1行につき1種類)</label>
+                  <div id="item-form-finishes-list" class="repeat-list"></div>
                 </div>
                 <div class="item-form-row" data-woodwork-only>
-                  <textarea
-                    id="item-form-finishes"
-                    rows="3"
-                    style="width: 100%;"
-                    placeholder="例:
-経師
-ポリ板"
-                  ></textarea>
-                </div>
-
-                <div class="item-form-row">
-                  <label for="item-form-price-unitprice">単価(price.unitPrice)</label>
-                  <input id="item-form-price-unitprice" type="number" step="1" placeholder="数値のみ, JPY" />
+                  <button id="item-form-finishes-add" type="button">+ 仕上げを追加</button>
                 </div>
 
                 <div class="item-form-row" data-woodwork-only>
@@ -519,19 +831,6 @@
                   <label for="item-form-labor-days">人工合計(laborTotal, 人日)</label>
                   <input id="item-form-labor-days" type="number" step="0.01" placeholder="人日" style="max-width: 100px;" />
                   <span class="inline-note">※内部的には laborTotal.unit="人日"</span>
-                </div>
-
-                <!-- ★移動：nlCorrection を人工合計の下に配置 -->
-                <div class="item-form-row">
-                  <label for="item-form-nlcorrection">自然言語修正指示(nlCorrection)</label>
-                </div>
-                <div class="item-form-row">
-                  <textarea
-                    id="item-form-nlcorrection"
-                    rows="3"
-                    style="width: 100%;"
-                    placeholder="例: 壁面仕上げを経師からポリ板に変更、開口900×2100を追加 など"
-                  ></textarea>
                 </div>
 
                 <details id="item-advanced" data-woodwork-only>
@@ -565,14 +864,91 @@
                   </div>
                 </details>
 
-                <div class="item-form-row" data-generic-only>
-                  <label>費用(cost.amount/notes)</label>
-                  <input id="item-form-cost-amount" type="number" step="1" placeholder="金額(JPY)" style="max-width: 140px;" />
-                  <input id="item-form-cost-notes" type="text" placeholder="根拠メモ(任意)" />
+                <div class="item-form-row">
+                  <label for="item-form-nlcorrection">自然言語修正指示(nlCorrection)</label>
+                </div>
+                <div class="item-form-row">
+                  <textarea
+                    id="item-form-nlcorrection"
+                    rows="3"
+                    style="width: 100%;"
+                    placeholder="例: 壁面仕上げを経師からポリ板に変更、開口900×2100を追加 など"
+                  ></textarea>
                 </div>
 
                 <div style="margin-top: 4px; margin-bottom: 6px; font-size: 11px; color: #666;">
                   ※フォームの値を変更すると、即座にアイテムとテーブル・JSON編集内容に反映されます。
+                </div>
+                </div>
+
+                <div class="section" id="site-costs-section" style="border-top: 1px solid #eee;">
+                  <h2>現場費（siteCosts）</h2>
+                  <div id="sitecosts-form-labor">
+                    <div class="item-form-row sitecosts-row">
+                      <label>単価</label>
+                      <input id="sitecosts-labor-unitprice" type="number" step="1" placeholder="単価(JPY)" style="max-width: 140px;" />
+                    </div>
+                    <div class="sitecosts-labor-grid">
+                      <span>設営</span>
+                      <div class="sitecosts-pair">
+                        <label>人数</label>
+                        <input id="sitecosts-labor-setup-people" type="number" step="1" placeholder="人数" />
+                      </div>
+                      <div class="sitecosts-pair">
+                        <label>日数</label>
+                        <input id="sitecosts-labor-setup-days" type="number" step="0.5" placeholder="日数" />
+                      </div>
+                    </div>
+                    <div class="sitecosts-labor-grid">
+                      <span>撤去</span>
+                      <div class="sitecosts-pair">
+                        <label>人数</label>
+                        <input id="sitecosts-labor-teardown-people" type="number" step="1" placeholder="人数" />
+                      </div>
+                      <div class="sitecosts-pair">
+                        <label>日数</label>
+                        <input id="sitecosts-labor-teardown-days" type="number" step="0.5" placeholder="日数" />
+                      </div>
+                    </div>
+                  </div>
+                  <div id="sitecosts-form-transport">
+                    <div class="item-form-row sitecosts-row">
+                      <label>搬入(setup)</label>
+                    </div>
+                    <div class="sitecosts-transport-grid header">
+                      <span>車種</span>
+                      <span>台数</span>
+                      <span>日数</span>
+                      <span>単価</span>
+                      <span></span>
+                    </div>
+                    <div id="sitecosts-transport-setup-list"></div>
+                    <div class="item-form-row sitecosts-row">
+                      <button id="sitecosts-transport-setup-add" type="button">搬入の車両を追加</button>
+                    </div>
+                    <div class="item-form-row sitecosts-row">
+                      <label>搬出(teardown)</label>
+                    </div>
+                    <div class="sitecosts-transport-grid header">
+                      <span>車種</span>
+                      <span>台数</span>
+                      <span>日数</span>
+                      <span>単価</span>
+                      <span></span>
+                    </div>
+                    <div id="sitecosts-transport-teardown-list"></div>
+                    <div class="item-form-row sitecosts-row">
+                      <button id="sitecosts-transport-teardown-add" type="button">搬出の車両を追加</button>
+                    </div>
+                  </div>
+                  <div id="sitecosts-form-waste">
+                    <div class="item-form-row sitecosts-row">
+                      <label>台数</label>
+                      <input id="sitecosts-waste-vehicles" type="number" step="1" placeholder="台数" style="max-width: 120px;" />
+                      <label>単価</label>
+                      <input id="sitecosts-waste-unitprice" type="number" step="1" placeholder="単価(JPY)" style="max-width: 140px;" />
+                    </div>
+                  </div>
                 </div>
               </div>
 
