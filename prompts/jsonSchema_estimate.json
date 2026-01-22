@@ -1,0 +1,164 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/schemas/estimate-document-min.json",
+  "title": "見積書生成用JSON（最小構成）",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["title", "client", "total", "breakdown"],
+  "properties": {
+    "title": {
+      "type": "string",
+      "minLength": 1,
+      "description": "帳票タイトル（例: 御 見 積 書）"
+    },
+    "client": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "description": "宛名（例: 〇〇株式会社　御中）"
+        }
+      }
+    },
+    "total": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["amount", "taxIncluded"],
+      "properties": {
+        "amount": {
+          "type": "number",
+          "minimum": 0,
+          "description": "合計金額（税の扱いは taxIncluded に従う）"
+        },
+        "taxIncluded": {
+          "type": "boolean",
+          "description": "消費税を含むか（false の場合『消費税は含まれておりません』等の注記に利用）"
+        }
+      }
+    },
+    "breakdown": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["title", "groups"],
+      "properties": {
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "description": "内訳表タイトル（例: 工事内訳明細表）"
+        },
+        "groups": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/group" }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "pricingRule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["marginRateOnCost", "isHiddenFromDocument"],
+      "properties": {
+        "marginRateOnCost": {
+          "type": "number",
+          "minimum": 0,
+          "description": "原価に対する利益率（例: 0.30 = 原価の30%を利益として上乗せ）"
+        },
+        "isHiddenFromDocument": {
+          "type": "boolean",
+          "default": true,
+          "description": "見積書には表示しない（通常 true）"
+        },
+        "notes": {
+          "type": "string",
+          "description": "内部計算用メモ"
+        }
+      }
+    },
+    "groupSummaryLine": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "quantity": { "type": "number", "minimum": 0 },
+        "unit": { "type": "string", "minLength": 1 },
+        "unitPrice": { "type": "number", "minimum": 0 },
+        "amount": { "type": "number", "minimum": 0 }
+      }
+    },
+    "lineItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "description"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "明細ID（jsonSchema_extract baseItemFields.id と同じ仕様：stringのみ）"
+        },
+        "description": { "type": "string", "minLength": 1 },
+        "quantity": { "type": "number", "minimum": 0 },
+        "unit": { "type": "string", "minLength": 1 },
+        "unitPrice": { "type": "number", "minimum": 0 },
+        "amount": {
+          "type": "number",
+          "minimum": 0,
+          "description": "単価×数量でない行もあるため任意"
+        },
+        "note": { "type": "string" }
+      }
+    },
+    "group": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["groupNo", "categoryName", "displayMode"],
+      "properties": {
+        "groupNo": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "№"
+        },
+        "categoryName": {
+          "type": "string",
+          "minLength": 1,
+          "description": "種別（例: 木工造作 / 現場費）"
+        },
+        "noteLines": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "グループ注記（複数行）"
+        },
+        "displayMode": {
+          "type": "string",
+          "enum": ["summary", "detailed"],
+          "description": "summary=グループ行中心 / detailed=内訳明細を表示"
+        },
+        "pricingRule": { "$ref": "#/$defs/pricingRule" },
+        "groupSummaryLine": { "$ref": "#/$defs/groupSummaryLine" },
+        "lineItems": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/lineItem" }
+        }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "displayMode": { "const": "summary" } } },
+          "then": {
+            "required": ["groupSummaryLine"]
+          }
+        },
+        {
+          "if": { "properties": { "displayMode": { "const": "detailed" } } },
+          "then": {
+            "required": ["lineItems"],
+            "properties": {
+              "lineItems": { "minItems": 1 }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

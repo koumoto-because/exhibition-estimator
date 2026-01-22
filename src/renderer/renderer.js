@@ -1,7 +1,7 @@
 // src/renderer/renderer.js
 
 // ===== Schema compatibility =====
-const SCHEMA_VERSION = "1.1.11";
+const SCHEMA_VERSION = "1.1.13";
 
 const CATEGORIES = [
   { key: "woodworkItems", label: "木工造作物" },
@@ -18,6 +18,9 @@ let selectedCategoryKey = "woodworkItems";
 let basePayload = null;
 let currentPayload = null;
 let selectedIndex = null;
+
+let estimatePayload = null;
+let estimateSelectedGroupIndex = null;
 
 let userChangedPathsCurrent = new Set();
 let userChangedPathsPrevious = new Set();
@@ -66,6 +69,12 @@ document.addEventListener("DOMContentLoaded", async () => {
   const itemsView = document.getElementById("items-view");
   const itemEditorContainer = document.getElementById("item-editor-container");
 
+  // page tabs
+  const pageTabExtract = document.getElementById("page-tab-extract");
+  const pageTabEstimate = document.getElementById("page-tab-estimate");
+  const extractPage = document.getElementById("extract-page");
+  const estimatePage = document.getElementById("estimate-page");
+
   // nlCorrection per category
   const nlWoodworkTextarea = document.getElementById("nl-woodwork");
   const nlFloorTextarea = document.getElementById("nl-floor");
@@ -78,18 +87,10 @@ document.addEventListener("DOMContentLoaded", async () => {
   // siteCosts
   const siteCostsSection = document.getElementById("site-costs-section");
   const siteCostsLaborUnitPrice = document.getElementById("sitecosts-labor-unitprice");
-  const siteCostsLaborCurrency = document.getElementById("sitecosts-labor-currency");
-  const siteCostsLaborSetupPeople = document.getElementById("sitecosts-labor-setup-people");
-  const siteCostsLaborSetupDays = document.getElementById("sitecosts-labor-setup-days");
-  const siteCostsLaborTeardownPeople = document.getElementById("sitecosts-labor-teardown-people");
-  const siteCostsLaborTeardownDays = document.getElementById("sitecosts-labor-teardown-days");
-  const siteCostsLaborNotes = document.getElementById("sitecosts-labor-notes");
-  const siteCostsTransportCurrency = document.getElementById("sitecosts-transport-currency");
-  const siteCostsTransportSetupList = document.getElementById("sitecosts-transport-setup-list");
-  const siteCostsTransportTeardownList = document.getElementById("sitecosts-transport-teardown-list");
-  const siteCostsTransportSetupAdd = document.getElementById("sitecosts-transport-setup-add");
-  const siteCostsTransportTeardownAdd = document.getElementById("sitecosts-transport-teardown-add");
-  const siteCostsTransportNotes = document.getElementById("sitecosts-transport-notes");
+  const siteCostsLaborList = document.getElementById("sitecosts-labor-list");
+  const siteCostsLaborAdd = document.getElementById("sitecosts-labor-add");
+  const siteCostsTransportList = document.getElementById("sitecosts-transport-list");
+  const siteCostsTransportAdd = document.getElementById("sitecosts-transport-add");
   const siteCostsWasteVehicles = document.getElementById("sitecosts-waste-vehicles");
   const siteCostsWasteUnitPrice = document.getElementById("sitecosts-waste-unitprice");
   const siteCostsWasteCurrency = document.getElementById("sitecosts-waste-currency");
@@ -101,6 +102,37 @@ document.addEventListener("DOMContentLoaded", async () => {
   const itemEditor = document.getElementById("item-editor");
   const itemEditorLabel = document.getElementById("item-editor-label");
   const btnApplyItemEdit = document.getElementById("btn-apply-item-edit");
+
+  // estimate editor
+  const btnEstimateGenerate = document.getElementById("btn-estimate-generate");
+  const estimateTitleInput = document.getElementById("estimate-title");
+  const estimateClientInput = document.getElementById("estimate-client");
+  const estimateTotalAmountInput = document.getElementById("estimate-total-amount");
+  const estimateTaxIncludedInput = document.getElementById("estimate-tax-included");
+  const estimateTaxRateInput = document.getElementById("estimate-tax-rate");
+  const estimateBreakdownTitleInput = document.getElementById("estimate-breakdown-title");
+  const estimateGroupsView = document.getElementById("estimate-groups-view");
+  const btnEstimateGroupAdd = document.getElementById("btn-estimate-group-add");
+  const btnEstimateGroupRemove = document.getElementById("btn-estimate-group-remove");
+  const estimateGroupLabel = document.getElementById("estimate-group-label");
+  const estimateGroupNoInput = document.getElementById("estimate-group-no");
+  const estimateGroupCategoryInput = document.getElementById("estimate-group-category");
+  const estimateGroupDisplaySelect = document.getElementById("estimate-group-display");
+  const estimateGroupNotesInput = document.getElementById("estimate-group-notes");
+  const estimateGroupMarginInput = document.getElementById("estimate-group-margin");
+  const estimateGroupHiddenInput = document.getElementById("estimate-group-hidden");
+  const estimateGroupPricingNotesInput = document.getElementById("estimate-group-pricing-notes");
+  const estimateSummarySection = document.getElementById("estimate-group-summary");
+  const estimateLinesSection = document.getElementById("estimate-group-lines");
+  const estimateSummaryQtyInput = document.getElementById("estimate-summary-quantity");
+  const estimateSummaryUnitInput = document.getElementById("estimate-summary-unit");
+  const estimateSummaryUnitPriceInput = document.getElementById("estimate-summary-unitprice");
+  const estimateSummaryAmountInput = document.getElementById("estimate-summary-amount");
+  const estimateLineItemsList = document.getElementById("estimate-lineitems-list");
+  const btnEstimateLineAdd = document.getElementById("btn-estimate-line-add");
+  const estimateJsonTextarea = document.getElementById("estimate-json");
+  const btnEstimateApplyJson = document.getElementById("btn-estimate-apply-json");
+  const btnEstimateExportXlsx = document.getElementById("btn-estimate-export-xlsx");
 
   // ★ 手動追加（空行追加ボタン）
   const btnItemAdd = document.getElementById("btn-item-add");
@@ -521,24 +553,16 @@ function updateSourceInfoUI() {
     });
   });
 
-  // ===== siteCosts: UI -> JSON 即時反映 (schema v1.1.2) =====
+  // ===== siteCosts: UI -> JSON 即時反映 (schema v1.1.12) =====
   function syncSiteCostsToUI() {
     if (!currentPayload) {
       if (siteCostsLaborUnitPrice) siteCostsLaborUnitPrice.value = "";
-      if (siteCostsLaborCurrency) siteCostsLaborCurrency.value = "JPY";
-      if (siteCostsLaborSetupPeople) siteCostsLaborSetupPeople.value = "";
-      if (siteCostsLaborSetupDays) siteCostsLaborSetupDays.value = "";
-      if (siteCostsLaborTeardownPeople) siteCostsLaborTeardownPeople.value = "";
-      if (siteCostsLaborTeardownDays) siteCostsLaborTeardownDays.value = "";
-      if (siteCostsLaborNotes) siteCostsLaborNotes.value = "";
-      if (siteCostsTransportCurrency) siteCostsTransportCurrency.value = "JPY";
-      if (siteCostsTransportNotes) siteCostsTransportNotes.value = "";
       if (siteCostsWasteVehicles) siteCostsWasteVehicles.value = "";
       if (siteCostsWasteUnitPrice) siteCostsWasteUnitPrice.value = "";
       if (siteCostsWasteCurrency) siteCostsWasteCurrency.value = "JPY";
       if (siteCostsWasteNotes) siteCostsWasteNotes.value = "";
-      if (siteCostsTransportSetupList) siteCostsTransportSetupList.innerHTML = "";
-      if (siteCostsTransportTeardownList) siteCostsTransportTeardownList.innerHTML = "";
+      if (siteCostsTransportList) siteCostsTransportList.innerHTML = "";
+      if (siteCostsLaborList) siteCostsLaborList.innerHTML = "";
       return;
     }
 
@@ -548,28 +572,18 @@ function updateSourceInfoUI() {
     const labor = sc.laborCost || {};
     const transport = sc.transportCost || {};
     const waste = sc.wasteDisposalCost || {};
-    const laborCost = labor.cost || labor;
     const transportCost = transport.cost || transport;
     const wasteCost = waste.cost || waste;
 
     if (siteCostsLaborUnitPrice) siteCostsLaborUnitPrice.value = typeof labor.unitPrice === "number" ? String(labor.unitPrice) : "";
-    if (siteCostsLaborCurrency) siteCostsLaborCurrency.value = laborCost.currency || "JPY";
-    if (siteCostsLaborSetupPeople) siteCostsLaborSetupPeople.value = typeof labor.setup?.people === "number" ? String(labor.setup.people) : "";
-    if (siteCostsLaborSetupDays) siteCostsLaborSetupDays.value = typeof labor.setup?.days === "number" ? String(labor.setup.days) : "";
-    if (siteCostsLaborTeardownPeople) siteCostsLaborTeardownPeople.value = typeof labor.teardown?.people === "number" ? String(labor.teardown.people) : "";
-    if (siteCostsLaborTeardownDays) siteCostsLaborTeardownDays.value = typeof labor.teardown?.days === "number" ? String(labor.teardown.days) : "";
-    if (siteCostsLaborNotes) siteCostsLaborNotes.value = labor.notes || "";
-
-    if (siteCostsTransportCurrency) siteCostsTransportCurrency.value = transportCost.currency || "JPY";
-    if (siteCostsTransportNotes) siteCostsTransportNotes.value = transport.notes || "";
 
     if (siteCostsWasteVehicles) siteCostsWasteVehicles.value = typeof waste.vehicles === "number" ? String(waste.vehicles) : "";
     if (siteCostsWasteUnitPrice) siteCostsWasteUnitPrice.value = typeof waste.unitPrice === "number" ? String(waste.unitPrice) : "";
     if (siteCostsWasteCurrency) siteCostsWasteCurrency.value = wasteCost.currency || "JPY";
     if (siteCostsWasteNotes) siteCostsWasteNotes.value = waste.notes || "";
 
-    renderTransportList(siteCostsTransportSetupList, transport.setup || [], "setup");
-    renderTransportList(siteCostsTransportTeardownList, transport.teardown || [], "teardown");
+    renderTransportList(siteCostsTransportList, transport.entries || []);
+    renderLaborList(siteCostsLaborList, labor.entries || []);
   }
 
   function syncSiteCostsFormVisibility() {
@@ -765,29 +779,33 @@ function updateSourceInfoUI() {
 
     const laborUnitPrice = siteCostsLaborUnitPrice ? toNum(siteCostsLaborUnitPrice.value) : null;
     const laborCostNotes = currentPayload.siteCosts.laborCost.cost?.notes || "";
-    const laborSetup = {
-      people: siteCostsLaborSetupPeople ? toNum(siteCostsLaborSetupPeople.value) ?? 0 : 0,
-      days: siteCostsLaborSetupDays ? toNum(siteCostsLaborSetupDays.value) ?? 0 : 0,
-      notes: currentPayload.siteCosts.laborCost.setup?.notes || ""
-    };
-    const laborTeardown = {
-      people: siteCostsLaborTeardownPeople ? toNum(siteCostsLaborTeardownPeople.value) ?? 0 : 0,
-      days: siteCostsLaborTeardownDays ? toNum(siteCostsLaborTeardownDays.value) ?? 0 : 0,
-      notes: currentPayload.siteCosts.laborCost.teardown?.notes || ""
-    };
+    const laborEntries = readLaborEntries(siteCostsLaborList);
+    if (laborEntries.length === 0) {
+      laborEntries.push({ label: "作業", people: 0, days: 0, notes: "" });
+    }
     const transportCostNotes = currentPayload.siteCosts.transportCost.cost?.notes || "";
-    const transportSetupArr = readTransportEntries(siteCostsTransportSetupList);
-    const transportTeardownArr = readTransportEntries(siteCostsTransportTeardownList);
+    const transportEntries = readTransportEntries(siteCostsTransportList);
     const wasteVehicles = siteCostsWasteVehicles ? toNum(siteCostsWasteVehicles.value) : null;
     const wasteUnitPrice = siteCostsWasteUnitPrice ? toNum(siteCostsWasteUnitPrice.value) : null;
     const wasteCostNotes = currentPayload.siteCosts.wasteDisposalCost.cost?.notes || "";
 
     const laborUnit = laborUnitPrice ?? 0;
-    const laborSetupDays = (laborSetup.people || 0) * (laborSetup.days || 0);
-    const laborTeardownDays = (laborTeardown.people || 0) * (laborTeardown.days || 0);
-    const laborAmount = laborUnit * (laborSetupDays + laborTeardownDays);
+    const laborTotal = laborEntries.reduce((sum, entry) => sum + (entry.people || 0) * (entry.days || 0), 0);
+    const laborAmount = laborUnit * laborTotal;
 
-    const transportAmount = [...transportSetupArr, ...transportTeardownArr].reduce((sum, entry) => {
+    if (transportEntries.length === 0) {
+      transportEntries.push({
+        label: "運搬",
+        vehicleType: "",
+        vehicles: 0,
+        days: 0,
+        unitPrice: 0,
+        cost: { amount: 0, currency: "JPY", notes: "" },
+        notes: ""
+      });
+    }
+
+    const transportAmount = transportEntries.reduce((sum, entry) => {
       const amount = entry && entry.cost && typeof entry.cost.amount === "number" ? entry.cost.amount : 0;
       return sum + amount;
     }, 0);
@@ -795,23 +813,19 @@ function updateSourceInfoUI() {
     const wasteAmount = (wasteVehicles ?? 0) * (wasteUnitPrice ?? 0);
 
     currentPayload.siteCosts.laborCost.unitPrice = laborUnitPrice ?? 0;
-    currentPayload.siteCosts.laborCost.setup = laborSetup || {};
-    currentPayload.siteCosts.laborCost.teardown = laborTeardown || {};
+    currentPayload.siteCosts.laborCost.entries = laborEntries;
     currentPayload.siteCosts.laborCost.cost = {
       amount: laborAmount ?? 0,
-      currency: (siteCostsLaborCurrency && siteCostsLaborCurrency.value) || "JPY",
+      currency: "JPY",
       notes: laborCostNotes
     };
-    currentPayload.siteCosts.laborCost.notes = (siteCostsLaborNotes && siteCostsLaborNotes.value) || "";
 
-    currentPayload.siteCosts.transportCost.setup = transportSetupArr;
-    currentPayload.siteCosts.transportCost.teardown = transportTeardownArr;
+    currentPayload.siteCosts.transportCost.entries = transportEntries;
     currentPayload.siteCosts.transportCost.cost = {
       amount: transportAmount ?? 0,
-      currency: (siteCostsTransportCurrency && siteCostsTransportCurrency.value) || "JPY",
+      currency: "JPY",
       notes: transportCostNotes
     };
-    currentPayload.siteCosts.transportCost.notes = (siteCostsTransportNotes && siteCostsTransportNotes.value) || "";
 
     currentPayload.siteCosts.wasteDisposalCost.vehicles = wasteVehicles ?? 0;
     currentPayload.siteCosts.wasteDisposalCost.unitPrice = wasteUnitPrice ?? 0;
@@ -834,12 +848,6 @@ function updateSourceInfoUI() {
 
   [
     siteCostsLaborUnitPrice,
-    siteCostsLaborSetupPeople,
-    siteCostsLaborSetupDays,
-    siteCostsLaborTeardownPeople,
-    siteCostsLaborTeardownDays,
-    siteCostsLaborNotes,
-    siteCostsTransportNotes,
     siteCostsWasteVehicles,
     siteCostsWasteUnitPrice,
     siteCostsWasteNotes
@@ -852,7 +860,18 @@ function updateSourceInfoUI() {
     });
   });
 
-  function renderTransportList(container, entries, kind) {
+  if (siteCostsLaborList) {
+    siteCostsLaborList.addEventListener("input", () => {
+      if (!currentPayload) return;
+      applySiteCostsFromUI();
+    });
+    siteCostsLaborList.addEventListener("change", () => {
+      if (!currentPayload) return;
+      applySiteCostsFromUI();
+    });
+  }
+
+  function renderTransportList(container, entries) {
     if (!container) return;
     container.innerHTML = "";
     const list = Array.isArray(entries) ? entries : [];
@@ -860,8 +879,12 @@ function updateSourceInfoUI() {
       const row = document.createElement("div");
       row.className = "sitecosts-transport-grid";
       row.dataset.transportRow = "1";
-      row.dataset.transportKind = kind;
       row.dataset.transportIndex = String(index);
+
+      const labelInput = document.createElement("input");
+      labelInput.type = "text";
+      labelInput.placeholder = "ラベル";
+      labelInput.value = typeof entry.label === "string" ? entry.label : "";
 
       const typeInput = document.createElement("input");
       typeInput.type = "text";
@@ -892,7 +915,7 @@ function updateSourceInfoUI() {
       removeBtn.addEventListener("click", () => {
         if (!currentPayload) return;
         normalizePayloadForSchema(currentPayload);
-        const target = kind === "setup" ? currentPayload.siteCosts.transportCost.setup : currentPayload.siteCosts.transportCost.teardown;
+        const target = currentPayload.siteCosts.transportCost.entries;
         if (Array.isArray(target)) target.splice(index, 1);
         if (basePayload && currentPayload) userChangedPathsCurrent = collectDiffPaths(basePayload, currentPayload);
         syncSiteCostsToUI();
@@ -900,6 +923,7 @@ function updateSourceInfoUI() {
         renderItemsTable();
       });
 
+      row.appendChild(labelInput);
       row.appendChild(typeInput);
       row.appendChild(vehiclesInput);
       row.appendChild(daysInput);
@@ -907,6 +931,75 @@ function updateSourceInfoUI() {
       row.appendChild(removeBtn);
       container.appendChild(row);
     });
+  }
+
+  function renderLaborList(container, entries) {
+    if (!container) return;
+    container.innerHTML = "";
+    const list = Array.isArray(entries) ? entries : [];
+    list.forEach((entry, index) => {
+      const row = document.createElement("div");
+      row.className = "sitecosts-labor-grid";
+      row.dataset.laborRow = "1";
+      row.dataset.laborIndex = String(index);
+
+      const labelInput = document.createElement("input");
+      labelInput.type = "text";
+      labelInput.placeholder = "ラベル";
+      labelInput.value = typeof entry.label === "string" ? entry.label : "";
+
+      const peopleInput = document.createElement("input");
+      peopleInput.type = "number";
+      peopleInput.step = "1";
+      peopleInput.placeholder = "人数";
+      peopleInput.value = typeof entry.people === "number" ? String(entry.people) : "";
+
+      const daysInput = document.createElement("input");
+      daysInput.type = "number";
+      daysInput.step = "0.5";
+      daysInput.placeholder = "日数";
+      daysInput.value = typeof entry.days === "number" ? String(entry.days) : "";
+
+      const removeBtn = document.createElement("button");
+      removeBtn.type = "button";
+      removeBtn.textContent = "削除";
+      removeBtn.addEventListener("click", () => {
+        if (!currentPayload) return;
+        normalizePayloadForSchema(currentPayload);
+        const target = currentPayload.siteCosts.laborCost.entries;
+        if (Array.isArray(target)) target.splice(index, 1);
+        if (basePayload && currentPayload) userChangedPathsCurrent = collectDiffPaths(basePayload, currentPayload);
+        syncSiteCostsToUI();
+        updateCategoryHighlight();
+        renderItemsTable();
+      });
+
+      row.appendChild(labelInput);
+      row.appendChild(peopleInput);
+      row.appendChild(daysInput);
+      row.appendChild(removeBtn);
+      container.appendChild(row);
+    });
+  }
+
+  function readLaborEntries(container) {
+    if (!container) return [];
+    const rows = container.querySelectorAll("[data-labor-row]");
+    const entries = [];
+    rows.forEach((row) => {
+      const inputs = row.querySelectorAll("input");
+      const getVal = (i) => (inputs[i] ? inputs[i].value : "");
+      const toNum = (v) => {
+        const n = parseFloat(String(v || ""));
+        return Number.isFinite(n) ? n : 0;
+      };
+      const label = getVal(0);
+      const people = toNum(getVal(1));
+      const days = toNum(getVal(2));
+      if (!label) return;
+      entries.push({ label, people, days, notes: "" });
+    });
+    return entries;
   }
 
   function readTransportEntries(container) {
@@ -920,12 +1013,15 @@ function updateSourceInfoUI() {
         const n = parseFloat(String(v || ""));
         return Number.isFinite(n) ? n : 0;
       };
-      const vehicleType = getVal(0);
-      const vehicles = toNum(getVal(1));
-      const days = toNum(getVal(2));
-      const unitPrice = toNum(getVal(3));
+      const label = getVal(0);
+      const vehicleType = getVal(1);
+      const vehicles = toNum(getVal(2));
+      const days = toNum(getVal(3));
+      const unitPrice = toNum(getVal(4));
       const amount = vehicles * days * unitPrice;
+      if (!label) return;
       entries.push({
+        label,
         vehicleType: vehicleType || "",
         vehicles,
         days,
@@ -937,22 +1033,22 @@ function updateSourceInfoUI() {
     return entries;
   }
 
-  [siteCostsTransportSetupList, siteCostsTransportTeardownList].forEach((container) => {
-    if (!container) return;
-    container.addEventListener("input", () => {
+  if (siteCostsTransportList) {
+    siteCostsTransportList.addEventListener("input", () => {
       if (!currentPayload) return;
       applySiteCostsFromUI();
     });
-  });
+  }
 
-  if (siteCostsTransportSetupAdd) {
-    siteCostsTransportSetupAdd.addEventListener("click", () => {
+  if (siteCostsTransportAdd) {
+    siteCostsTransportAdd.addEventListener("click", () => {
       if (!currentPayload) return;
       normalizePayloadForSchema(currentPayload);
-      if (!Array.isArray(currentPayload.siteCosts.transportCost.setup)) {
-        currentPayload.siteCosts.transportCost.setup = [];
+      if (!Array.isArray(currentPayload.siteCosts.transportCost.entries)) {
+        currentPayload.siteCosts.transportCost.entries = [];
       }
-      currentPayload.siteCosts.transportCost.setup.push({
+      currentPayload.siteCosts.transportCost.entries.push({
+        label: "",
         vehicleType: "",
         vehicles: 0,
         days: 0,
@@ -967,25 +1063,169 @@ function updateSourceInfoUI() {
     });
   }
 
-  if (siteCostsTransportTeardownAdd) {
-    siteCostsTransportTeardownAdd.addEventListener("click", () => {
+  if (siteCostsLaborAdd) {
+    siteCostsLaborAdd.addEventListener("click", () => {
       if (!currentPayload) return;
       normalizePayloadForSchema(currentPayload);
-      if (!Array.isArray(currentPayload.siteCosts.transportCost.teardown)) {
-        currentPayload.siteCosts.transportCost.teardown = [];
+      if (!Array.isArray(currentPayload.siteCosts.laborCost.entries)) {
+        currentPayload.siteCosts.laborCost.entries = [];
       }
-      currentPayload.siteCosts.transportCost.teardown.push({
-        vehicleType: "",
-        vehicles: 0,
+      currentPayload.siteCosts.laborCost.entries.push({
+        label: "",
+        people: 0,
         days: 0,
-        unitPrice: 0,
-        cost: { amount: 0, currency: "JPY", notes: "" },
         notes: ""
       });
       if (basePayload && currentPayload) userChangedPathsCurrent = collectDiffPaths(basePayload, currentPayload);
       syncSiteCostsToUI();
       updateCategoryHighlight();
       renderItemsTable();
+    });
+  }
+
+  if (pageTabExtract) {
+    pageTabExtract.addEventListener("click", () => setPageMode("extract"));
+  }
+  if (pageTabEstimate) {
+    pageTabEstimate.addEventListener("click", () => setPageMode("estimate"));
+  }
+
+  if (btnEstimateGenerate) {
+    btnEstimateGenerate.addEventListener("click", () => {
+      if (!currentPayload) {
+        alert("先に抽出JSONを読み込んでください。");
+        return;
+      }
+      estimatePayload = buildEstimateFromExtraction(currentPayload);
+      estimateSelectedGroupIndex = 0;
+      syncEstimateToUI();
+      setPageMode("estimate");
+    });
+  }
+
+  [
+    estimateTitleInput,
+    estimateClientInput,
+    estimateTaxRateInput,
+    estimateTaxIncludedInput,
+    estimateBreakdownTitleInput
+  ].forEach((el) => {
+    if (!el) return;
+    const evt = el.type === "checkbox" ? "change" : "input";
+    el.addEventListener(evt, () => {
+      if (!estimatePayload) ensureEstimatePayload();
+      applyEstimateHeaderFromUI();
+    });
+  });
+
+  [
+    estimateGroupNoInput,
+    estimateGroupCategoryInput,
+    estimateGroupDisplaySelect,
+    estimateGroupNotesInput,
+    estimateGroupMarginInput,
+    estimateGroupHiddenInput,
+    estimateGroupPricingNotesInput,
+    estimateSummaryQtyInput,
+    estimateSummaryUnitInput,
+    estimateSummaryUnitPriceInput,
+    estimateSummaryAmountInput
+  ].forEach((el) => {
+    if (!el) return;
+    const evt = el.tagName === "SELECT" || el.type === "checkbox" ? "change" : "input";
+    el.addEventListener(evt, () => {
+      applyEstimateGroupFromUI();
+      if (estimateGroupDisplaySelect === el) {
+        syncEstimateGroupEditor();
+      }
+    });
+  });
+
+  if (estimateLineItemsList) {
+    estimateLineItemsList.addEventListener("input", () => {
+      applyEstimateGroupFromUI();
+    });
+  }
+
+  if (btnEstimateLineAdd) {
+    btnEstimateLineAdd.addEventListener("click", () => {
+      ensureEstimatePayload();
+      const group = estimatePayload.breakdown.groups?.[estimateSelectedGroupIndex];
+      if (!group) return;
+      if (!Array.isArray(group.lineItems)) group.lineItems = [];
+      group.lineItems.push(createDefaultLineItem());
+      renderEstimateLineItems(estimateLineItemsList, group.lineItems);
+      applyEstimateGroupFromUI();
+    });
+  }
+
+  if (btnEstimateGroupAdd) {
+    btnEstimateGroupAdd.addEventListener("click", () => {
+      ensureEstimatePayload();
+      const groupNo = estimatePayload.breakdown.groups.length + 1;
+      estimatePayload.breakdown.groups.push(createDefaultEstimateGroup(groupNo, ""));
+      estimateSelectedGroupIndex = estimatePayload.breakdown.groups.length - 1;
+      renderEstimateGroups();
+      syncEstimateGroupEditor();
+      recalcEstimateTotals();
+      syncEstimateJson();
+    });
+  }
+
+  if (btnEstimateGroupRemove) {
+    btnEstimateGroupRemove.addEventListener("click", () => {
+      ensureEstimatePayload();
+      if (!Number.isInteger(estimateSelectedGroupIndex)) return;
+      estimatePayload.breakdown.groups.splice(estimateSelectedGroupIndex, 1);
+      if (estimatePayload.breakdown.groups.length === 0) {
+        estimatePayload.breakdown.groups.push(createDefaultEstimateGroup(1, ""));
+        estimateSelectedGroupIndex = 0;
+      } else if (estimateSelectedGroupIndex >= estimatePayload.breakdown.groups.length) {
+        estimateSelectedGroupIndex = estimatePayload.breakdown.groups.length - 1;
+      }
+      renderEstimateGroups();
+      syncEstimateGroupEditor();
+      recalcEstimateTotals();
+      syncEstimateJson();
+    });
+  }
+
+  if (btnEstimateApplyJson) {
+    btnEstimateApplyJson.addEventListener("click", () => {
+      if (!estimateJsonTextarea) return;
+      try {
+        const parsed = JSON.parse(estimateJsonTextarea.value || "{}");
+        estimatePayload = parsed;
+        estimateSelectedGroupIndex = 0;
+        syncEstimateToUI();
+      } catch (err) {
+        alert("JSONの解析に失敗しました。構文を確認してください。");
+        console.error(err);
+      }
+    });
+  }
+
+  if (btnEstimateExportXlsx) {
+    btnEstimateExportXlsx.addEventListener("click", async () => {
+      if (!estimatePayload) {
+        alert("見積書JSONがありません。先に下書き作成またはJSON反映を行ってください。");
+        return;
+      }
+      if (!window.api || !window.api.exportEstimateXlsx) {
+        alert("xlsx出力APIが利用できません。");
+        return;
+      }
+      try {
+        const res = await window.api.exportEstimateXlsx(estimatePayload);
+        if (!res || !res.ok) {
+          alert(res?.error || "xlsx出力に失敗しました。");
+          return;
+        }
+        setStatus(`xlsxを出力しました: ${res.path}`);
+      } catch (err) {
+        console.error(err);
+        alert("xlsx出力中にエラーが発生しました。");
+      }
     });
   }
 
@@ -1613,6 +1853,7 @@ function updateSourceInfoUI() {
       }
     });
   }
+
 
   // 状態ファイル保存
   if (btnExportStateFile) {
@@ -2735,18 +2976,20 @@ function updateSourceInfoUI() {
       return { amount, currency, notes };
     };
 
-    const normalizeLaborSetup = (entry) => {
+    const normalizeLaborEntry = (entry) => {
       const base = entry && typeof entry === "object" && !Array.isArray(entry) ? entry : {};
       return {
+        label: typeof base.label === "string" ? base.label : "",
         people: typeof base.people === "number" ? base.people : 0,
         days: typeof base.days === "number" ? base.days : 0,
         notes: typeof base.notes === "string" ? base.notes : ""
       };
     };
 
-    const normalizeTransportLeg = (entry) => {
+    const normalizeTransportEntry = (entry) => {
       const base = entry && typeof entry === "object" && !Array.isArray(entry) ? entry : {};
       return {
+        label: typeof base.label === "string" ? base.label : "",
         vehicleType: typeof base.vehicleType === "string" ? base.vehicleType : "",
         vehicles: typeof base.vehicles === "number" ? base.vehicles : 0,
         days: typeof base.days === "number" ? base.days : 0,
@@ -2757,19 +3000,61 @@ function updateSourceInfoUI() {
     };
 
     const laborBase = payload.siteCosts.laborCost && typeof payload.siteCosts.laborCost === "object" ? payload.siteCosts.laborCost : {};
+    const legacyEntries = [];
+    if (laborBase.setup && typeof laborBase.setup === "object") {
+      legacyEntries.push({
+        label: "設営",
+        people: typeof laborBase.setup.people === "number" ? laborBase.setup.people : 0,
+        days: typeof laborBase.setup.days === "number" ? laborBase.setup.days : 0,
+        notes: typeof laborBase.setup.notes === "string" ? laborBase.setup.notes : ""
+      });
+    }
+    if (laborBase.teardown && typeof laborBase.teardown === "object") {
+      legacyEntries.push({
+        label: "撤去",
+        people: typeof laborBase.teardown.people === "number" ? laborBase.teardown.people : 0,
+        days: typeof laborBase.teardown.days === "number" ? laborBase.teardown.days : 0,
+        notes: typeof laborBase.teardown.notes === "string" ? laborBase.teardown.notes : ""
+      });
+    }
+    const entries = Array.isArray(laborBase.entries) ? laborBase.entries.map(normalizeLaborEntry) : legacyEntries;
     payload.siteCosts.laborCost = {
       unitPrice: typeof laborBase.unitPrice === "number" ? laborBase.unitPrice : 0,
-      setup: normalizeLaborSetup(laborBase.setup),
-      teardown: normalizeLaborSetup(laborBase.teardown),
+      entries: entries.length ? entries : [{ label: "作業", people: 0, days: 0, notes: "" }],
       cost: normalizeCostObject(laborBase),
       notes: typeof laborBase.notes === "string" ? laborBase.notes : ""
     };
 
     const transportBase =
       payload.siteCosts.transportCost && typeof payload.siteCosts.transportCost === "object" ? payload.siteCosts.transportCost : {};
+    const legacyTransport = [];
+    if (Array.isArray(transportBase.setup)) {
+      transportBase.setup.forEach((entry) => {
+        legacyTransport.push({ label: "搬入", ...entry });
+      });
+    }
+    if (Array.isArray(transportBase.teardown)) {
+      transportBase.teardown.forEach((entry) => {
+        legacyTransport.push({ label: "搬出", ...entry });
+      });
+    }
+    const transportEntries = Array.isArray(transportBase.entries)
+      ? transportBase.entries.map(normalizeTransportEntry)
+      : legacyTransport.map(normalizeTransportEntry);
     payload.siteCosts.transportCost = {
-      setup: Array.isArray(transportBase.setup) ? transportBase.setup.map(normalizeTransportLeg) : [],
-      teardown: Array.isArray(transportBase.teardown) ? transportBase.teardown.map(normalizeTransportLeg) : [],
+      entries: transportEntries.length
+        ? transportEntries
+        : [
+            {
+              label: "運搬",
+              vehicleType: "",
+              vehicles: 0,
+              days: 0,
+              unitPrice: 0,
+              cost: { amount: 0, currency: "JPY", notes: "" },
+              notes: ""
+            }
+          ],
       cost: normalizeCostObject(transportBase),
       notes: typeof transportBase.notes === "string" ? transportBase.notes : ""
     };
@@ -3063,6 +3348,532 @@ function updateSourceInfoUI() {
     };
   }
 
+  function createDefaultEstimateGroup(groupNo, categoryName) {
+    return {
+      groupNo,
+      categoryName: categoryName || "",
+      noteLines: [],
+      displayMode: "summary",
+      pricingRule: {
+        marginRateOnCost: 0,
+        isHiddenFromDocument: true,
+        notes: ""
+      },
+      groupSummaryLine: {
+        quantity: 1,
+        unit: "式",
+        unitPrice: 0,
+        amount: 0
+      },
+      lineItems: []
+    };
+  }
+
+  function createDefaultEstimatePayload() {
+    return {
+      title: "御 見 積 書",
+      client: { name: "" },
+      total: { amount: 0, tax: { included: true, rate: 0.1 } },
+      breakdown: { title: "工事内訳明細表", groups: [createDefaultEstimateGroup(1, "")] }
+    };
+  }
+
+  function ensureEstimatePayload() {
+    if (!estimatePayload || typeof estimatePayload !== "object") {
+      estimatePayload = createDefaultEstimatePayload();
+    }
+    if (!estimatePayload.client || typeof estimatePayload.client !== "object") {
+      estimatePayload.client = { name: "" };
+    }
+    if (!estimatePayload.total || typeof estimatePayload.total !== "object") {
+      estimatePayload.total = { amount: 0, tax: { included: true, rate: 0.1 } };
+    }
+    if (!estimatePayload.total.tax || typeof estimatePayload.total.tax !== "object") {
+      estimatePayload.total.tax = { included: true, rate: 0.1 };
+    }
+    if (!estimatePayload.breakdown || typeof estimatePayload.breakdown !== "object") {
+      estimatePayload.breakdown = { title: "工事内訳明細表", groups: [] };
+    }
+    if (!Array.isArray(estimatePayload.breakdown.groups)) {
+      estimatePayload.breakdown.groups = [];
+    }
+  }
+
+  function setPageMode(mode) {
+    const isEstimate = mode === "estimate";
+    if (extractPage) extractPage.hidden = isEstimate;
+    if (estimatePage) estimatePage.hidden = !isEstimate;
+    if (pageTabExtract) pageTabExtract.classList.toggle("active", !isEstimate);
+    if (pageTabEstimate) pageTabEstimate.classList.toggle("active", isEstimate);
+    if (isEstimate) syncEstimateToUI();
+  }
+
+  function calcEstimateLineAmount(line) {
+    const amount = typeof line.amount === "number" ? line.amount : null;
+    if (typeof amount === "number") return amount;
+    const qty = typeof line.quantity === "number" ? line.quantity : 0;
+    const unitPrice = typeof line.unitPrice === "number" ? line.unitPrice : 0;
+    return qty * unitPrice;
+  }
+
+  function calcEstimateGroupAmount(group) {
+    if (!group || typeof group !== "object") return 0;
+    if (group.displayMode === "summary") {
+      const line = group.groupSummaryLine || {};
+      if (typeof line.amount === "number") return line.amount;
+      if (typeof line.quantity === "number" && typeof line.unitPrice === "number") {
+        return line.quantity * line.unitPrice;
+      }
+      return 0;
+    }
+    const items = Array.isArray(group.lineItems) ? group.lineItems : [];
+    return items.reduce((sum, line) => sum + calcEstimateLineAmount(line), 0);
+  }
+
+  function recalcEstimateTotals() {
+    if (!estimatePayload) return;
+    const groups = estimatePayload.breakdown?.groups || [];
+    const total = groups.reduce((sum, group) => sum + calcEstimateGroupAmount(group), 0);
+    estimatePayload.total.amount = total;
+    if (estimateTotalAmountInput) estimateTotalAmountInput.value = total ? String(total) : "0";
+  }
+
+  function renderEstimateGroups() {
+    if (!estimateGroupsView) return;
+    ensureEstimatePayload();
+    const groups = estimatePayload.breakdown.groups;
+    if (estimateSelectedGroupIndex == null && groups.length) {
+      estimateSelectedGroupIndex = 0;
+    }
+
+    const rows = groups
+      .map((group, index) => {
+        const amount = calcEstimateGroupAmount(group);
+        const rowClass = index === estimateSelectedGroupIndex ? "selected" : "";
+        return `
+          <tr class="${rowClass}" data-group-index="${index}">
+            <td>${group.groupNo ?? ""}</td>
+            <td>${escapeHtml(group.categoryName || "")}</td>
+            <td>${group.displayMode || ""}</td>
+            <td>${amount || 0}</td>
+          </tr>
+        `;
+      })
+      .join("");
+
+    estimateGroupsView.innerHTML = `
+      <table class="estimate-table">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>種別</th>
+            <th>表示</th>
+            <th>小計</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rows || `<tr><td colspan="4" style="color:#777;">グループがありません</td></tr>`}
+        </tbody>
+      </table>
+    `;
+
+    const tbody = estimateGroupsView.querySelector("tbody");
+    if (tbody) {
+      tbody.querySelectorAll("tr[data-group-index]").forEach((row) => {
+        row.addEventListener("click", () => {
+          const idx = Number(row.getAttribute("data-group-index"));
+          if (Number.isFinite(idx)) {
+            estimateSelectedGroupIndex = idx;
+            renderEstimateGroups();
+            syncEstimateGroupEditor();
+          }
+        });
+      });
+    }
+  }
+
+  function syncEstimateGroupEditor() {
+    ensureEstimatePayload();
+    const groups = estimatePayload.breakdown.groups;
+    const group = Number.isInteger(estimateSelectedGroupIndex) ? groups[estimateSelectedGroupIndex] : null;
+    const hasGroup = !!group;
+
+    if (estimateGroupLabel) {
+      estimateGroupLabel.textContent = hasGroup
+        ? `#${group.groupNo ?? ""} ${group.categoryName || ""}`
+        : "（行をクリックするとここに表示されます）";
+    }
+
+    const setDisabled = (el, disabled) => {
+      if (!el) return;
+      el.disabled = disabled;
+    };
+
+    [
+      estimateGroupNoInput,
+      estimateGroupCategoryInput,
+      estimateGroupDisplaySelect,
+      estimateGroupNotesInput,
+      estimateGroupMarginInput,
+      estimateGroupHiddenInput,
+      estimateGroupPricingNotesInput,
+      estimateSummaryQtyInput,
+      estimateSummaryUnitInput,
+      estimateSummaryUnitPriceInput,
+      estimateSummaryAmountInput,
+      btnEstimateLineAdd
+    ].forEach((el) => setDisabled(el, !hasGroup));
+
+    if (!hasGroup) {
+      if (estimateGroupNoInput) estimateGroupNoInput.value = "";
+      if (estimateGroupCategoryInput) estimateGroupCategoryInput.value = "";
+      if (estimateGroupDisplaySelect) estimateGroupDisplaySelect.value = "summary";
+      if (estimateGroupNotesInput) estimateGroupNotesInput.value = "";
+      if (estimateGroupMarginInput) estimateGroupMarginInput.value = "";
+      if (estimateGroupHiddenInput) estimateGroupHiddenInput.checked = false;
+      if (estimateGroupPricingNotesInput) estimateGroupPricingNotesInput.value = "";
+      if (estimateSummaryQtyInput) estimateSummaryQtyInput.value = "";
+      if (estimateSummaryUnitInput) estimateSummaryUnitInput.value = "";
+      if (estimateSummaryUnitPriceInput) estimateSummaryUnitPriceInput.value = "";
+      if (estimateSummaryAmountInput) estimateSummaryAmountInput.value = "";
+      if (estimateLineItemsList) estimateLineItemsList.innerHTML = "";
+      return;
+    }
+
+    if (estimateGroupNoInput) estimateGroupNoInput.value = group.groupNo ?? "";
+    if (estimateGroupCategoryInput) estimateGroupCategoryInput.value = group.categoryName || "";
+    if (estimateGroupDisplaySelect) estimateGroupDisplaySelect.value = group.displayMode || "summary";
+    if (estimateGroupNotesInput) estimateGroupNotesInput.value = Array.isArray(group.noteLines) ? group.noteLines.join("\n") : "";
+
+    const pricing = group.pricingRule || {};
+    if (estimateGroupMarginInput) estimateGroupMarginInput.value = pricing.marginRateOnCost ?? "";
+    if (estimateGroupHiddenInput) estimateGroupHiddenInput.checked = pricing.isHiddenFromDocument !== false;
+    if (estimateGroupPricingNotesInput) estimateGroupPricingNotesInput.value = pricing.notes || "";
+
+    const summary = group.groupSummaryLine || {};
+    if (estimateSummaryQtyInput) estimateSummaryQtyInput.value = summary.quantity ?? "";
+    if (estimateSummaryUnitInput) estimateSummaryUnitInput.value = summary.unit || "";
+    if (estimateSummaryUnitPriceInput) estimateSummaryUnitPriceInput.value = summary.unitPrice ?? "";
+    if (estimateSummaryAmountInput) estimateSummaryAmountInput.value = summary.amount ?? "";
+
+    if (estimateSummarySection) estimateSummarySection.hidden = group.displayMode !== "summary";
+    if (estimateLinesSection) estimateLinesSection.hidden = group.displayMode !== "detailed";
+
+    if (group.displayMode === "detailed") {
+      if (!Array.isArray(group.lineItems) || group.lineItems.length === 0) {
+        group.lineItems = [createDefaultLineItem()];
+      }
+      renderEstimateLineItems(estimateLineItemsList, group.lineItems);
+    } else {
+      if (estimateLineItemsList) estimateLineItemsList.innerHTML = "";
+    }
+  }
+
+  function syncEstimateHeaderToUI() {
+    ensureEstimatePayload();
+    if (estimateTitleInput) estimateTitleInput.value = estimatePayload.title || "";
+    if (estimateClientInput) estimateClientInput.value = estimatePayload.client?.name || "";
+    if (estimateTotalAmountInput) estimateTotalAmountInput.value = estimatePayload.total?.amount ?? "";
+    if (estimateTaxIncludedInput) estimateTaxIncludedInput.checked = !!estimatePayload.total?.tax?.included;
+    if (estimateTaxRateInput) estimateTaxRateInput.value = estimatePayload.total?.tax?.rate ?? "";
+    if (estimateBreakdownTitleInput) estimateBreakdownTitleInput.value = estimatePayload.breakdown?.title || "";
+  }
+
+  function syncEstimateJson() {
+    if (!estimateJsonTextarea) return;
+    ensureEstimatePayload();
+    estimateJsonTextarea.value = JSON.stringify(estimatePayload, null, 2);
+  }
+
+  function syncEstimateToUI() {
+    ensureEstimatePayload();
+    syncEstimateHeaderToUI();
+    renderEstimateGroups();
+    syncEstimateGroupEditor();
+    recalcEstimateTotals();
+    syncEstimateJson();
+  }
+
+  function applyEstimateHeaderFromUI() {
+    if (!estimatePayload) return;
+    if (estimateTitleInput) estimatePayload.title = estimateTitleInput.value || "";
+    if (estimateClientInput) estimatePayload.client = { name: estimateClientInput.value || "" };
+    if (estimateBreakdownTitleInput) estimatePayload.breakdown.title = estimateBreakdownTitleInput.value || "";
+    if (estimateTaxIncludedInput) estimatePayload.total.tax.included = estimateTaxIncludedInput.checked;
+    if (estimateTaxRateInput) {
+      const rate = parseFloat(String(estimateTaxRateInput.value || ""));
+      estimatePayload.total.tax.rate = Number.isFinite(rate) ? rate : 0;
+    }
+    recalcEstimateTotals();
+    syncEstimateJson();
+  }
+
+  function applyEstimateGroupFromUI() {
+    if (!estimatePayload) return;
+    const groups = estimatePayload.breakdown.groups;
+    const group = Number.isInteger(estimateSelectedGroupIndex) ? groups[estimateSelectedGroupIndex] : null;
+    if (!group) return;
+
+    const num = parseInt(String(estimateGroupNoInput?.value || ""), 10);
+    group.groupNo = Number.isFinite(num) ? num : group.groupNo || 1;
+    group.categoryName = estimateGroupCategoryInput?.value || "";
+    group.displayMode = estimateGroupDisplaySelect?.value === "detailed" ? "detailed" : "summary";
+    if (estimateGroupNotesInput) {
+      const raw = estimateGroupNotesInput.value || "";
+      group.noteLines = raw
+        .split("\n")
+        .map((line) => line.trim())
+        .filter((line) => line.length > 0);
+    }
+    group.pricingRule = {
+      marginRateOnCost: parseFloat(String(estimateGroupMarginInput?.value || "")) || 0,
+      isHiddenFromDocument: estimateGroupHiddenInput?.checked !== false,
+      notes: estimateGroupPricingNotesInput?.value || ""
+    };
+
+    if (estimateGroupLabel) {
+      estimateGroupLabel.textContent = `#${group.groupNo ?? ""} ${group.categoryName || ""}`;
+    }
+
+    if (group.displayMode === "summary") {
+      if (!group.groupSummaryLine || typeof group.groupSummaryLine !== "object") {
+        group.groupSummaryLine = { quantity: 0, unit: "", unitPrice: 0, amount: 0 };
+      }
+      const qty = parseFloat(String(estimateSummaryQtyInput?.value || ""));
+      const unitPrice = parseFloat(String(estimateSummaryUnitPriceInput?.value || ""));
+      const amount = parseFloat(String(estimateSummaryAmountInput?.value || ""));
+      group.groupSummaryLine.quantity = Number.isFinite(qty) ? qty : 0;
+      group.groupSummaryLine.unit = estimateSummaryUnitInput?.value || "";
+      group.groupSummaryLine.unitPrice = Number.isFinite(unitPrice) ? unitPrice : 0;
+      group.groupSummaryLine.amount = Number.isFinite(amount) ? amount : group.groupSummaryLine.quantity * group.groupSummaryLine.unitPrice;
+    } else {
+      if (!Array.isArray(group.lineItems)) group.lineItems = [];
+      const nextLines = readEstimateLineItems(estimateLineItemsList, group.lineItems);
+      if (nextLines.length > 0) {
+        group.lineItems = nextLines;
+      } else if (!Array.isArray(group.lineItems) || group.lineItems.length === 0) {
+        group.lineItems = [createDefaultLineItem()];
+      }
+    }
+
+    recalcEstimateTotals();
+    renderEstimateGroups();
+    syncEstimateJson();
+  }
+
+  function createDefaultLineItem() {
+    return {
+      id: "",
+      description: "",
+      quantity: 1,
+      unit: "式",
+      unitPrice: 0,
+      amount: 0,
+      note: ""
+    };
+  }
+
+
+  function renderEstimateLineItems(container, items) {
+    if (!container) return;
+    container.innerHTML = "";
+    const list = Array.isArray(items) ? items : [];
+    list.forEach((item, index) => {
+      const row = document.createElement("div");
+      row.className = "estimate-lines-row";
+      row.dataset.lineRow = "1";
+      row.dataset.lineIndex = String(index);
+
+      const makeInput = (field, value, type = "text", step) => {
+        const input = document.createElement("input");
+        input.type = type;
+        if (step) input.step = step;
+        input.value = value != null ? String(value) : "";
+        input.dataset.field = field;
+        return input;
+      };
+
+      const descInput = makeInput("description", item.description || "");
+      descInput.placeholder = "内容";
+      const qtyInput = makeInput("quantity", item.quantity ?? "", "number", "0.01");
+      const unitInput = makeInput("unit", item.unit || "");
+      const unitPriceInput = makeInput("unitPrice", item.unitPrice ?? "", "number", "1");
+      const amountInput = makeInput("amount", item.amount ?? "", "number", "1");
+      const noteInput = makeInput("note", item.note || "");
+
+      const removeBtn = document.createElement("button");
+      removeBtn.type = "button";
+      removeBtn.textContent = "削除";
+      removeBtn.addEventListener("click", () => {
+        if (!estimatePayload) return;
+        const group = estimatePayload.breakdown.groups?.[estimateSelectedGroupIndex];
+        if (!group || !Array.isArray(group.lineItems)) return;
+        group.lineItems.splice(index, 1);
+        if (group.lineItems.length === 0) {
+          group.lineItems.push(createDefaultLineItem());
+        }
+        renderEstimateLineItems(container, group.lineItems);
+        applyEstimateGroupFromUI();
+      });
+
+      row.appendChild(descInput);
+      row.appendChild(qtyInput);
+      row.appendChild(unitInput);
+      row.appendChild(unitPriceInput);
+      row.appendChild(amountInput);
+      row.appendChild(noteInput);
+      row.appendChild(removeBtn);
+      container.appendChild(row);
+    });
+  }
+
+  function readEstimateLineItems(container, existingItems) {
+    if (!container) return [];
+    const rows = container.querySelectorAll("[data-line-row]");
+    const items = [];
+    const existing = Array.isArray(existingItems) ? existingItems : [];
+    rows.forEach((row) => {
+      const index = parseInt(row.dataset.lineIndex || "", 10);
+      const get = (field) => row.querySelector(`[data-field="${field}"]`);
+      const toNum = (v) => {
+        const n = parseFloat(String(v || ""));
+        return Number.isFinite(n) ? n : 0;
+      };
+      const description = (get("description") && get("description").value) || "";
+      const quantity = toNum(get("quantity") && get("quantity").value);
+      const unit = (get("unit") && get("unit").value) || "";
+      const unitPrice = toNum(get("unitPrice") && get("unitPrice").value);
+      const amountRaw = get("amount") && get("amount").value;
+      const amount = Number.isFinite(parseFloat(String(amountRaw || "")))
+        ? parseFloat(String(amountRaw || ""))
+        : quantity * unitPrice;
+      const note = (get("note") && get("note").value) || "";
+      const base = Number.isFinite(index) && existing[index] ? existing[index] : createDefaultLineItem();
+      if (!base.id && Number.isFinite(index)) base.id = `line-${index}-${Date.now()}`;
+      base.description = description || "未設定";
+      base.quantity = quantity;
+      base.unit = unit;
+      base.unitPrice = unitPrice;
+      base.amount = amount;
+      base.note = note;
+      items.push(base);
+    });
+    return items;
+  }
+
+  function buildEstimateFromExtraction(payload) {
+    if (!payload || typeof payload !== "object") return createDefaultEstimatePayload();
+    const categories = [
+      { key: "woodworkItems", label: "木工造作" },
+      { key: "floorItems", label: "床" },
+      { key: "finishingItems", label: "表装" },
+      { key: "signItems", label: "サイン" },
+      { key: "electricalItems", label: "電気" },
+      { key: "leaseItems", label: "リース" }
+    ];
+
+    const calcItemAmount = (item, isWoodwork) => {
+      if (!item || typeof item !== "object") return 0;
+      if (item.includeInEstimate === false) return 0;
+      const unitPrice = item.price && typeof item.price.unitPrice === "number" ? item.price.unitPrice : null;
+      const qty = typeof item.quantity === "number" ? item.quantity : null;
+      if (typeof unitPrice === "number" && typeof qty === "number") return unitPrice * qty;
+      if (isWoodwork) {
+        const mat = item.materialCost?.amount || 0;
+        const labor = item.laborCost?.amount || 0;
+        return mat + labor;
+      }
+      const cost = item.cost?.amount;
+      return typeof cost === "number" ? cost : 0;
+    };
+
+    const groups = [];
+    categories.forEach((cat, index) => {
+      const items = Array.isArray(payload[cat.key]) ? payload[cat.key] : [];
+      const total = items.reduce((sum, item) => sum + calcItemAmount(item, cat.key === "woodworkItems"), 0);
+      if (items.length === 0 && total === 0) return;
+      const group = createDefaultEstimateGroup(groups.length + 1, cat.label);
+      if (cat.key === "leaseItems") {
+        group.displayMode = "detailed";
+      }
+      group.lineItems = items.map((item) => {
+        const unitPrice = item?.price && typeof item.price.unitPrice === "number" ? item.price.unitPrice : null;
+        const qty = typeof item?.quantity === "number" ? item.quantity : 1;
+        const unit = typeof item?.unit === "string" ? item.unit : "式";
+        const amount = calcItemAmount(item, cat.key === "woodworkItems");
+        const lineId = item?.id || `line-${cat.key}-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
+        const lineItem = {
+          id: lineId,
+          description: item?.name || "未設定",
+          quantity: qty,
+          unit,
+          unitPrice: unitPrice ?? 0,
+          amount,
+          note: item?.notes || ""
+        };
+        return lineItem;
+      });
+      group.groupSummaryLine.amount = total;
+      group.groupSummaryLine.unitPrice = total;
+      groups.push(group);
+    });
+
+    const site = payload.siteCosts || {};
+    const laborAmount = site.laborCost?.cost?.amount || 0;
+    const laborUnitPrice = site.laborCost?.unitPrice || 0;
+    const laborQuantity = Array.isArray(site.laborCost?.entries)
+      ? site.laborCost.entries.reduce((sum, entry) => sum + (entry.people || 0) * (entry.days || 0), 0)
+      : 0;
+    const transportAmount = site.transportCost?.cost?.amount || 0;
+    const wasteAmount = site.wasteDisposalCost?.cost?.amount || 0;
+    const siteTotal = laborAmount + transportAmount + wasteAmount;
+    if (siteTotal > 0) {
+      const group = createDefaultEstimateGroup(groups.length + 1, "現場費");
+      group.displayMode = "detailed";
+      group.lineItems = [
+        {
+          id: "sitecosts-labor",
+          description: "人工費",
+          quantity: laborQuantity || 0,
+          unit: "人工",
+          unitPrice: laborUnitPrice,
+          amount: laborAmount,
+          note: ""
+        },
+        {
+          id: "sitecosts-transport",
+          description: "運搬費",
+          quantity: 1,
+          unit: "式",
+          unitPrice: transportAmount,
+          amount: transportAmount,
+          note: ""
+        },
+        {
+          id: "sitecosts-waste",
+          description: "残材処理費",
+          quantity: 1,
+          unit: "式",
+          unitPrice: wasteAmount,
+          amount: wasteAmount,
+          note: ""
+        }
+      ];
+      group.groupSummaryLine.amount = siteTotal;
+      group.groupSummaryLine.unitPrice = siteTotal;
+      groups.push(group);
+    }
+
+    const totalAmount = groups.reduce((sum, group) => sum + calcEstimateGroupAmount(group), 0);
+    return {
+      title: "御 見 積 書",
+      client: { name: "" },
+      total: { amount: totalAmount, tax: { included: true, rate: 0.1 } },
+      breakdown: { title: "工事内訳明細表", groups: groups.length ? groups : [createDefaultEstimateGroup(1, "")] }
+    };
+  }
+
+
   // 初期表示
   syncNlCategoryToUI();
   updateSourceInfoUI();
@@ -3073,4 +3884,6 @@ function updateSourceInfoUI() {
   syncSiteCostsFormVisibility();
   syncSiteCostEditorForSelection();
   renderItemsTable();
+  syncEstimateToUI();
+  setPageMode("extract");
 });

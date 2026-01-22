@@ -24,6 +24,12 @@ type PromptGetResult = {
   error?: string;
 };
 
+type EstimateExportResult = {
+  ok: boolean;
+  path?: string;
+  error?: string;
+};
+
 contextBridge.exposeInMainWorld("api", {
   // --- App state ---
   getState: async (): Promise<AppState> => {
@@ -40,6 +46,11 @@ contextBridge.exposeInMainWorld("api", {
     console.log("[preload] getPrompt called:", stage);
     const res = (await ipcRenderer.invoke("prompt:get", stage)) as PromptGetResult;
     return res;
+  },
+
+  exportEstimateXlsx: async (payload: unknown): Promise<EstimateExportResult> => {
+    const res = (await ipcRenderer.invoke("estimate:exportXlsx", payload)) as EstimateExportResult;
+    return res;
   }
 });
 
@@ -50,6 +61,7 @@ declare global {
       getState: () => Promise<AppState>;
       setTestMode: (value: boolean) => Promise<AppState>;
       getPrompt: (stage: string) => Promise<PromptGetResult>;
+      exportEstimateXlsx: (payload: unknown) => Promise<EstimateExportResult>;
     };
   }
 }

@@ -267,19 +267,30 @@
 
       .sitecosts-labor-grid {
         display: grid;
-        grid-template-columns: 64px minmax(120px, 1fr) minmax(120px, 1fr);
+        grid-template-columns: minmax(120px, 1.4fr) minmax(60px, 0.8fr) minmax(60px, 0.8fr) 56px;
         gap: 8px;
         align-items: center;
       }
 
-      .sitecosts-labor-grid label,
-      .sitecosts-labor-grid span {
-        font-size: 12px;
+      .sitecosts-labor-grid.header {
+        font-size: 11px;
+        color: #555;
+        font-weight: 600;
+      }
+
+      .sitecosts-labor-grid input {
+        width: 100%;
       }
 
       .sitecosts-transport-grid {
         display: grid;
-        grid-template-columns: minmax(80px, 1.4fr) minmax(60px, 0.8fr) minmax(60px, 0.8fr) minmax(80px, 1fr) 56px;
+        grid-template-columns:
+          minmax(120px, 1.2fr)
+          minmax(100px, 1.4fr)
+          minmax(60px, 0.7fr)
+          minmax(60px, 0.7fr)
+          minmax(80px, 1fr)
+          56px;
         gap: 8px;
         align-items: center;
       }
@@ -312,6 +323,41 @@
       .sitecosts-drawer input[type="text"],
       .sitecosts-drawer input[type="number"] {
         flex: 0 1 auto;
+      }
+
+      .estimate-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 12px;
+      }
+
+      .estimate-table th,
+      .estimate-table td {
+        border-bottom: 1px solid #eee;
+        padding: 4px 6px;
+        text-align: left;
+      }
+
+      .estimate-table tbody tr.selected {
+        background: #f0f6ff;
+      }
+
+      .estimate-lines-row,
+      .estimate-lines-header {
+        display: grid;
+        grid-template-columns: minmax(140px, 1.6fr) minmax(70px, 0.7fr) minmax(60px, 0.6fr) minmax(80px, 0.8fr) minmax(80px, 0.8fr) minmax(120px, 1fr) 56px;
+        gap: 6px;
+        align-items: center;
+      }
+
+      .estimate-lines-header {
+        font-size: 11px;
+        color: #555;
+        font-weight: 600;
+      }
+
+      .estimate-lines-row input {
+        width: 100%;
       }
 
       .item-form-spec {
@@ -562,6 +608,14 @@
       <div class="column column-right">
         <div id="right-scroll">
           <div id="right-scroll-inner">
+            <div class="tab-bar" style="margin-bottom: 6px;">
+              <div class="tabs">
+                <button id="page-tab-extract" class="tab-btn active" type="button">構造物編集</button>
+                <button id="page-tab-estimate" class="tab-btn" type="button">見積書作成</button>
+              </div>
+            </div>
+
+            <div id="extract-page">
             <div class="section" style="border-bottom: none; padding-bottom: 4px;">
               <h2>3. 構造物リストと編集</h2>
               <p style="font-size: 11px; margin-top: 2px;">
@@ -888,57 +942,29 @@
                       <label>単価</label>
                       <input id="sitecosts-labor-unitprice" type="number" step="1" placeholder="単価(JPY)" style="max-width: 140px;" />
                     </div>
-                    <div class="sitecosts-labor-grid">
-                      <span>設営</span>
-                      <div class="sitecosts-pair">
-                        <label>人数</label>
-                        <input id="sitecosts-labor-setup-people" type="number" step="1" placeholder="人数" />
-                      </div>
-                      <div class="sitecosts-pair">
-                        <label>日数</label>
-                        <input id="sitecosts-labor-setup-days" type="number" step="0.5" placeholder="日数" />
-                      </div>
+                    <div class="sitecosts-labor-grid header">
+                      <span>ラベル</span>
+                      <span>人数</span>
+                      <span>日数</span>
+                      <span></span>
                     </div>
-                    <div class="sitecosts-labor-grid">
-                      <span>撤去</span>
-                      <div class="sitecosts-pair">
-                        <label>人数</label>
-                        <input id="sitecosts-labor-teardown-people" type="number" step="1" placeholder="人数" />
-                      </div>
-                      <div class="sitecosts-pair">
-                        <label>日数</label>
-                        <input id="sitecosts-labor-teardown-days" type="number" step="0.5" placeholder="日数" />
-                      </div>
+                    <div id="sitecosts-labor-list"></div>
+                    <div class="item-form-row sitecosts-row">
+                      <button id="sitecosts-labor-add" type="button">人工の行を追加</button>
                     </div>
                   </div>
                   <div id="sitecosts-form-transport">
-                    <div class="item-form-row sitecosts-row">
-                      <label>搬入(setup)</label>
-                    </div>
                     <div class="sitecosts-transport-grid header">
+                      <span>ラベル</span>
                       <span>車種</span>
                       <span>台数</span>
                       <span>日数</span>
                       <span>単価</span>
                       <span></span>
                     </div>
-                    <div id="sitecosts-transport-setup-list"></div>
+                    <div id="sitecosts-transport-list"></div>
                     <div class="item-form-row sitecosts-row">
-                      <button id="sitecosts-transport-setup-add" type="button">搬入の車両を追加</button>
-                    </div>
-                    <div class="item-form-row sitecosts-row">
-                      <label>搬出(teardown)</label>
-                    </div>
-                    <div class="sitecosts-transport-grid header">
-                      <span>車種</span>
-                      <span>台数</span>
-                      <span>日数</span>
-                      <span>単価</span>
-                      <span></span>
-                    </div>
-                    <div id="sitecosts-transport-teardown-list"></div>
-                    <div class="item-form-row sitecosts-row">
-                      <button id="sitecosts-transport-teardown-add" type="button">搬出の車両を追加</button>
+                      <button id="sitecosts-transport-add" type="button">運搬の行を追加</button>
                     </div>
                   </div>
                   <div id="sitecosts-form-waste">
@@ -967,6 +993,150 @@
                 <div style="margin-top: 4px;">
                   <button id="btn-apply-item-edit">JSONの変更をアイテムに反映</button>
                 </div>
+              </div>
+            </div>
+          </div>
+          </div>
+
+          <div id="estimate-page" hidden>
+            <div class="section">
+              <h2>見積書作成</h2>
+              <p style="font-size: 11px; margin-top: 2px;">
+                抽出JSONを見積書用のJSONに成形するための画面です。必要な値を入力してください。
+              </p>
+              <div class="item-form-row">
+                <button id="btn-estimate-generate" type="button">抽出JSONから下書き作成</button>
+                <span class="inline-note">※現在読み込まれている構造物JSONを基に見積書の下書きを作成します。</span>
+              </div>
+            </div>
+
+            <div class="section">
+              <h3>基本情報</h3>
+              <div class="item-form-row">
+                <label for="estimate-title">製作名称</label>
+                <input id="estimate-title" type="text" placeholder="例: 展示ブース造作一式" />
+              </div>
+              <div class="item-form-row">
+                <label for="estimate-client">宛名</label>
+                <input id="estimate-client" type="text" placeholder="例: 〇〇株式会社 御中" />
+              </div>
+              <div class="item-form-row">
+                <label for="estimate-total-amount">合計金額</label>
+                <input id="estimate-total-amount" type="number" step="1" placeholder="円" style="max-width: 160px;" readonly />
+                <span class="inline-note">グループ内容から自動集計されます。</span>
+              </div>
+              <div class="item-form-row">
+                <label>消費税</label>
+                <label style="display: flex; align-items: center; gap: 6px;">
+                  <input id="estimate-tax-included" type="checkbox" />
+                  税込
+                </label>
+                <label style="display: flex; align-items: center; gap: 6px;">
+                  税率
+                  <input id="estimate-tax-rate" type="number" step="0.01" min="0" max="1" placeholder="0.10" style="max-width: 100px;" />
+                </label>
+              </div>
+              <div class="item-form-row">
+                <label for="estimate-breakdown-title">内訳表タイトル</label>
+                <input id="estimate-breakdown-title" type="text" placeholder="例: 工事内訳明細表" />
+              </div>
+            </div>
+
+            <div class="section">
+              <h3>内訳グループ</h3>
+              <div id="estimate-groups-view"></div>
+              <div id="estimate-groups-controls" style="margin-top: 6px; display:flex; gap:6px; align-items:center;">
+                <button id="btn-estimate-group-add" type="button">+</button>
+                <button id="btn-estimate-group-remove" type="button">-</button>
+              </div>
+
+              <div id="estimate-group-editor" style="margin-top: 8px;">
+                <div style="margin-bottom: 4px; font-size: 12px;">
+                  <strong>選択中グループ</strong>
+                  <span id="estimate-group-label" style="margin-left: 8px; font-size: 11px; color: #555;">
+                    （行をクリックするとここに表示されます）
+                  </span>
+                </div>
+
+                <div class="item-form-row">
+                  <label for="estimate-group-no">№</label>
+                  <input id="estimate-group-no" type="number" step="1" min="1" style="max-width: 80px;" />
+                </div>
+                <div class="item-form-row">
+                  <label for="estimate-group-category">種別</label>
+                  <input id="estimate-group-category" type="text" placeholder="例: 木工造作" />
+                </div>
+                <div class="item-form-row">
+                  <label for="estimate-group-display">表示モード</label>
+                  <select id="estimate-group-display">
+                    <option value="summary">summary（概要）</option>
+                    <option value="detailed">detailed（内訳）</option>
+                  </select>
+                </div>
+                <div class="item-form-row">
+                  <label for="estimate-group-notes">注記</label>
+                  <textarea id="estimate-group-notes" rows="2" placeholder="1行につき1つ"></textarea>
+                </div>
+
+                <div class="section" id="estimate-group-pricing">
+                  <h4>利益率設定</h4>
+                  <div class="item-form-row">
+                    <label for="estimate-group-margin">利益率</label>
+                    <input id="estimate-group-margin" type="number" step="0.01" min="0" placeholder="0.30" style="max-width: 100px;" />
+                    <span class="inline-note">原価に対する利益率</span>
+                  </div>
+                  <div class="item-form-row">
+                    <label>帳票非表示</label>
+                    <label style="display: flex; align-items: center; gap: 6px;">
+                      <input id="estimate-group-hidden" type="checkbox" />
+                      非表示
+                    </label>
+                  </div>
+                  <div class="item-form-row">
+                    <label for="estimate-group-pricing-notes">メモ</label>
+                    <input id="estimate-group-pricing-notes" type="text" placeholder="内部用メモ" />
+                  </div>
+                </div>
+
+                <div class="section" id="estimate-group-summary">
+                  <h4>グループ概要（summary）</h4>
+                  <div class="item-form-row">
+                    <label>数量/単位</label>
+                    <input id="estimate-summary-quantity" type="number" step="0.01" min="0" style="max-width: 100px;" />
+                    <input id="estimate-summary-unit" type="text" placeholder="式" style="max-width: 80px;" />
+                  </div>
+                  <div class="item-form-row">
+                    <label>単価/金額</label>
+                    <input id="estimate-summary-unitprice" type="number" step="1" min="0" style="max-width: 120px;" />
+                    <input id="estimate-summary-amount" type="number" step="1" min="0" style="max-width: 120px;" />
+                  </div>
+                </div>
+
+                <div class="section" id="estimate-group-lines">
+                  <h4>内訳明細（detailed）</h4>
+                  <div class="estimate-lines-header">
+                    <span>内容</span>
+                    <span>数量</span>
+                    <span>単位</span>
+                    <span>単価</span>
+                    <span>金額</span>
+                    <span>備考</span>
+                    <span></span>
+                  </div>
+                  <div id="estimate-lineitems-list"></div>
+                  <div class="item-form-row" style="margin-top: 4px;">
+                    <button id="btn-estimate-line-add" type="button">内訳行を追加</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="section">
+              <h3>JSON編集</h3>
+              <textarea id="estimate-json" rows="12" spellcheck="false" placeholder="{ ... 見積書JSON ... }"></textarea>
+              <div style="margin-top: 4px;">
+                <button id="btn-estimate-apply-json" type="button">JSONを反映</button>
+                <button id="btn-estimate-export-xlsx" type="button">見積書xlsxを出力</button>
               </div>
             </div>
           </div>

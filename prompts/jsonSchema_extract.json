@@ -18,7 +18,7 @@
     "signItems"
   ],
   "properties": {
-    "version": { "type": "string", "default": "1.1.11" },
+    "version": { "type": "string", "default": "1.1.13" },
     "stage": { "type": "string", "enum": ["extraction", "review", "ready_for_estimation"] },
     "extractedAt": { "type": "string", "format": "date-time" },
 
@@ -341,10 +341,8 @@
             "structureType": { "$ref": "#/$defs/structureType" },
             "dimensions": { "$ref": "#/$defs/dimensionHWD" },
             "materials": { "type": "array", "items": { "$ref": "#/$defs/materialSpec" } },
-
             "finishes": { "type": "array", "items": { "$ref": "#/$defs/finishEntry" } },
             "finishSurfaceArea": { "$ref": "#/$defs/surfaceAreaWithNotes" },
-
             "isBent": { "type": "boolean" },
             "hasSpecialAngles": { "type": "boolean" },
             "supportsHeavyLoad": { "type": "boolean" },
@@ -430,8 +428,9 @@
     "siteLaborEntry": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["people", "days"],
+      "required": ["label", "people", "days"],
       "properties": {
+        "label": { "type": "string", "minLength": 1 },
         "people": { "type": "integer", "minimum": 0 },
         "days": { "type": "number", "minimum": 0 },
         "notes": { "type": "string" }
@@ -441,11 +440,14 @@
     "siteLaborCost": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["unitPrice", "setup", "teardown"],
+      "required": ["unitPrice", "entries"],
       "properties": {
         "unitPrice": { "type": "number", "minimum": 0 },
-        "setup": { "$ref": "#/$defs/siteLaborEntry" },
-        "teardown": { "$ref": "#/$defs/siteLaborEntry" },
+        "entries": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/siteLaborEntry" }
+        },
         "cost": { "$ref": "#/$defs/costAmountWithNotes" },
         "notes": { "type": "string" }
       }
@@ -454,8 +456,9 @@
     "siteTransportEntry": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["vehicleType", "vehicles", "days", "unitPrice"],
+      "required": ["label", "vehicleType", "vehicles", "days", "unitPrice"],
       "properties": {
+        "label": { "type": "string", "minLength": 1 },
         "vehicleType": { "type": "string" },
         "vehicles": { "type": "integer", "minimum": 0 },
         "days": { "type": "number", "minimum": 0 },
@@ -468,10 +471,13 @@
     "siteTransportCost": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["setup", "teardown"],
+      "required": ["entries"],
       "properties": {
-        "setup": { "type": "array", "items": { "$ref": "#/$defs/siteTransportEntry" } },
-        "teardown": { "type": "array", "items": { "$ref": "#/$defs/siteTransportEntry" } },
+        "entries": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/siteTransportEntry" }
+        },
         "cost": { "$ref": "#/$defs/costAmountWithNotes" },
         "notes": { "type": "string" }
       }
