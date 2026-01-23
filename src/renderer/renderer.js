@@ -3371,7 +3371,7 @@ function updateSourceInfoUI() {
 
   function createDefaultEstimatePayload() {
     return {
-      title: "御 見 積 書",
+      title: "",
       client: { name: "" },
       total: { amount: 0, tax: { included: true, rate: 0.1 } },
       breakdown: { title: "工事内訳明細表", groups: [createDefaultEstimateGroup(1, "")] }
@@ -3448,14 +3448,19 @@ function updateSourceInfoUI() {
 
     const rows = groups
       .map((group, index) => {
-        const amount = calcEstimateGroupAmount(group);
+        const cost = typeof group.groupSummaryLine?.amount === "number" ? group.groupSummaryLine.amount : 0;
+        const marginRate = typeof group.pricingRule?.marginRateOnCost === "number" ? group.pricingRule.marginRateOnCost : 0;
+        const subtotal = Math.round(cost * (1 + marginRate));
+        const marginDisplay = marginRate ? `${Math.round(marginRate * 100)}%` : "0%";
         const rowClass = index === estimateSelectedGroupIndex ? "selected" : "";
         return `
           <tr class="${rowClass}" data-group-index="${index}">
             <td>${group.groupNo ?? ""}</td>
             <td>${escapeHtml(group.categoryName || "")}</td>
             <td>${group.displayMode || ""}</td>
-            <td>${amount || 0}</td>
+            <td>${cost || 0}</td>
+            <td>${marginDisplay}</td>
+            <td>${subtotal || 0}</td>
           </tr>
         `;
       })
@@ -3468,11 +3473,13 @@ function updateSourceInfoUI() {
             <th>#</th>
             <th>種別</th>
             <th>表示</th>
+            <th>原価</th>
+            <th>利益率</th>
             <th>小計</th>
           </tr>
         </thead>
         <tbody>
-          ${rows || `<tr><td colspan="4" style="color:#777;">グループがありません</td></tr>`}
+          ${rows || `<tr><td colspan="6" style="color:#777;">グループがありません</td></tr>`}
         </tbody>
       </table>
     `;
@@ -3827,42 +3834,40 @@ function updateSourceInfoUI() {
     const transportAmount = site.transportCost?.cost?.amount || 0;
     const wasteAmount = site.wasteDisposalCost?.cost?.amount || 0;
     const siteTotal = laborAmount + transportAmount + wasteAmount;
-    if (siteTotal > 0) {
-      const group = createDefaultEstimateGroup(groups.length + 1, "現場費");
-      group.displayMode = "detailed";
-      group.lineItems = [
-        {
-          id: "sitecosts-labor",
-          description: "人工費",
-          quantity: laborQuantity || 0,
-          unit: "人工",
-          unitPrice: laborUnitPrice,
-          amount: laborAmount,
-          note: ""
-        },
-        {
-          id: "sitecosts-transport",
-          description: "運搬費",
-          quantity: 1,
-          unit: "式",
-          unitPrice: transportAmount,
-          amount: transportAmount,
-          note: ""
-        },
-        {
-          id: "sitecosts-waste",
-          description: "残材処理費",
-          quantity: 1,
-          unit: "式",
-          unitPrice: wasteAmount,
-          amount: wasteAmount,
-          note: ""
-        }
-      ];
-      group.groupSummaryLine.amount = siteTotal;
-      group.groupSummaryLine.unitPrice = siteTotal;
-      groups.push(group);
-    }
+    const group = createDefaultEstimateGroup(groups.length + 1, "現場費");
+    group.displayMode = "detailed";
+    group.lineItems = [
+      {
+        id: "sitecosts-labor",
+        description: "人工費",
+        quantity: laborQuantity || 0,
+        unit: "人工",
+        unitPrice: laborUnitPrice,
+        amount: laborAmount,
+        note: ""
+      },
+      {
+        id: "sitecosts-transport",
+        description: "運搬費",
+        quantity: 1,
+        unit: "式",
+        unitPrice: transportAmount,
+        amount: transportAmount,
+        note: ""
+      },
+      {
+        id: "sitecosts-waste",
+        description: "残材処理費",
+        quantity: 1,
+        unit: "式",
+        unitPrice: wasteAmount,
+        amount: wasteAmount,
+        note: ""
+      }
+    ];
+    group.groupSummaryLine.amount = siteTotal;
+    group.groupSummaryLine.unitPrice = siteTotal;
+    groups.push(group);
 
     const totalAmount = groups.reduce((sum, group) => sum + calcEstimateGroupAmount(group), 0);
     return {
