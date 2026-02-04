@@ -1,0 +1,57 @@
+{
+  "date": "2026-01-30",
+  "currency": "JPY",
+  "items": [
+    {
+      "category": "分電盤",
+      "entries": [
+        { "name": "２P20A(2K)", "amount": 10000 },
+        { "name": "２P30A(3K)", "amount": 10000 },
+        { "name": "３P20A(4K)", "amount": 15000 },
+        { "name": "３P30A(6K)", "amount": 15000 },
+        { "name": "３P40A(8K)", "amount": 15000 },
+        { "name": "３P50A(10K)", "amount": 20000 },
+        { "name": "３P60A(12K)", "amount": 20000 },
+        { "name": "３P75A(15K)", "amount": 25000 },
+        { "name": "3P100A(20A)", "amount": 30000 }
+      ]
+    },
+    {
+      "category": "ダウンライト",
+      "entries": [
+        { "name": "LED75", "amount": 2000 },
+        { "name": "LED100", "amount": 2500 },
+        { "name": "CDM125", "amount": 4000 }
+      ]
+    },
+    {
+      "category": "スティックライト",
+      "entries": [
+        { "name": "L1200", "amount": 2000 },
+        { "name": "L600", "amount": 2000 }
+      ]
+    },
+    {
+      "category": "テープライト",
+      "entries": [
+        { "name": "１ｍ", "amount": 1000, "unit": "m" }
+      ]
+    },
+    {
+      "category": "コンセント",
+      "entries": [
+        { "name": "100V", "amount": 1800 },
+        { "name": "200V", "amount": null, "note": "容量にて異なる" }
+      ]
+    },
+    {
+      "category": "LED照明",
+      "entries": [
+        { "name": "10W", "amount": 2500 },
+        { "name": "30W", "amount": 3000 },
+        { "name": "50W", "amount": 4500 },
+        { "name": "100W", "amount": 8000 }
+      ]
+    }
+  ]
+}

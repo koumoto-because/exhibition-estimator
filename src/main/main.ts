@@ -47,11 +47,13 @@ function loadPrompt(stage: string) {
 
   const materialPath = path.join(promptsDir, "materialInfo.json");
   const laborPath = path.join(promptsDir, "laborInfo.json");
+  const elecPath = path.join(promptsDir, "elecInfo.json");
   const schemaFilename = stage === "estimate" ? "jsonSchema_estimate.json" : "jsonSchema_extract.json";
   const schemaPath = path.join(promptsDir, schemaFilename);
 
   const materialInfo = readTextSafe(materialPath);
   const laborInfo = readTextSafe(laborPath);
+  const elecInfo = readTextSafe(elecPath);
   const jsonSchema = readTextSafe(schemaPath);
 
   const replace = (
@@ -62,14 +64,16 @@ function loadPrompt(stage: string) {
     filePath: string
   ) => {
     if (!text.includes(tag)) return text;
+    const header = label ? `${label}\n` : "";
     return text.split(tag).join(
-      `${label}\n${body ?? `（読み込み失敗: ${filePath}）`}\n`
+      `${header}${body ?? `（読み込み失敗: ${filePath}）`}\n`
     );
   };
 
   let resolved = raw;
   resolved = replace(resolved, "<materialInfo>", "【材料詳細】", materialInfo, materialPath);
   resolved = replace(resolved, "<laborInfo>", "【人工単価・人工計算用係数】", laborInfo, laborPath);
+  resolved = replace(resolved, "<elecInfo>", "", elecInfo, elecPath);
   resolved = replace(resolved, "<jsonSchema>", "【Json Schema】", jsonSchema, schemaPath);
 
   return {
@@ -80,12 +84,15 @@ function loadPrompt(stage: string) {
       promptsDir,
       materialPath,
       laborPath,
+      elecPath,
       schemaPath,
       hasMaterialTag: raw.includes("<materialInfo>"),
       hasLaborTag: raw.includes("<laborInfo>"),
+      hasElecTag: raw.includes("<elecInfo>"),
       hasSchemaTag: raw.includes("<jsonSchema>"),
       materialExists: !!materialInfo,
       laborExists: !!laborInfo,
+      elecExists: !!elecInfo,
       schemaExists: !!jsonSchema
     }
   };
