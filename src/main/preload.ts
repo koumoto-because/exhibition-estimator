@@ -1,10 +1,6 @@
 // src/main/preload.ts
 import { contextBridge, ipcRenderer } from "electron";
 
-type AppState = {
-  testMode: boolean;
-};
-
 type PromptGetResult = {
   stage: string;
   prompt: string;
@@ -48,15 +44,6 @@ type StateSaveRequest = {
 };
 
 contextBridge.exposeInMainWorld("api", {
-  // --- App state ---
-  getState: async (): Promise<AppState> => {
-    return await ipcRenderer.invoke("app:getState");
-  },
-
-  setTestMode: async (value: boolean): Promise<AppState> => {
-    return await ipcRenderer.invoke("app:setTestMode", value);
-  },
-
   // --- Prompt ---
   getPrompt: async (stage: string): Promise<PromptGetResult> => {
     // デバッグしやすいようにログは残す（不要なら削除OK）
@@ -85,8 +72,6 @@ contextBridge.exposeInMainWorld("api", {
 declare global {
   interface Window {
     api: {
-      getState: () => Promise<AppState>;
-      setTestMode: (value: boolean) => Promise<AppState>;
       getPrompt: (stage: string) => Promise<PromptGetResult>;
       exportEstimateXlsx: (payload: unknown) => Promise<EstimateExportResult>;
       saveState: (data: string, saveAs?: boolean) => Promise<StateSaveResult>;

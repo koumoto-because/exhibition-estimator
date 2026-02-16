@@ -1,5 +1,6 @@
 {
-  "name": "exhibition-estimator",
+  "name": "bec-ai",
+  "productName": "Bec-AI",
   "version": "1.0.0",
   "main": "dist/main/main.js",
   "scripts": {

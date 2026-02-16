@@ -8,7 +8,6 @@ const APP_ROOT = app.getAppPath();
 dotenv.config({ path: path.join(APP_ROOT, ".env") });
 
 let mainWindow: BrowserWindow | null = null;
-let isTestMode = process.env.APP_MODE === "test";
 let lastStateSavePath: string | null = null;
 
 function getPromptFilename(stage: string) {
@@ -181,13 +180,6 @@ app.whenReady().then(() => {
   ];
   const menu = Menu.buildFromTemplate(template);
   Menu.setApplicationMenu(menu);
-});
-
-ipcMain.handle("app:getState", async () => ({ testMode: isTestMode }));
-
-ipcMain.handle("app:setTestMode", async (_e, v) => {
-  isTestMode = !!v;
-  return { testMode: isTestMode };
 });
 
 ipcMain.handle("prompt:get", async (_e, stage) => {

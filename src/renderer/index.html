@@ -2,7 +2,7 @@
 <html lang="ja">
   <head>
     <meta charset="UTF-8" />
-    <title>展示会木工積算アシスタント</title>
+    <title>Bec-AI</title>
     <style>
       body {
         margin: 0;
@@ -98,11 +98,11 @@
 
       #prompt-area {
         padding: 8px 12px;
-        flex: 1;
+        flex-shrink: 0;
       }
 
       #prompt-text {
-        height: 100%;
+        height: 120px;
       }
 
       #json-input-area {
@@ -575,15 +575,11 @@
   </head>
   <body>
     <header>
-      <div>展示会木工造作 積算アシスタント（テストモード対応）</div>
+      <div>Bec-AI</div>
       <div class="header-right-group">
         <label>
           <input type="checkbox" id="change-highlight-toggle" checked />
           変更ハイライト
-        </label>
-        <label>
-          <input type="checkbox" id="test-mode-toggle" />
-          テストモード
         </label>
         <span id="status"></span>
       </div>
@@ -650,7 +646,7 @@
                   <button id="btn-load-prompt">プロンプト読込</button>
                 </div>
                 <p style="font-size: 11px; margin-top: 4px;">
-                  ※テストモード時：ここに表示されたプロンプトをChatGPTに貼り付け、図面ファイルも添付して実行してください。
+                  ※ここに表示されたプロンプトをChatGPTに貼り付け、図面ファイルも添付して実行してください。
                 </p>
               </div>
 
@@ -721,7 +717,7 @@
               <div class="tab-bar" style="margin-top: 6px;">
                 <div id="category-tabs" class="tabs"></div>
                 <button id="btn-generate-diff" type="button">
-                  差分JSONを生成して「更新プロンプト」にセット
+                  修正プロンプトを作成
                 </button>
               </div>
             </div>

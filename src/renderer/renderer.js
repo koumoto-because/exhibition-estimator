@@ -36,7 +36,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     return;
   }
 
-  const testModeToggle = document.getElementById("test-mode-toggle");
   const changeHighlightToggle = document.getElementById("change-highlight-toggle");
   const statusSpan = document.getElementById("status");
 
@@ -782,8 +781,7 @@ function updateSourceInfoUI() {
       selectedCategoryKey,
       userChangedPathsCurrent: Array.from(userChangedPathsCurrent),
       userChangedPathsPrevious: Array.from(userChangedPathsPrevious),
-      apiChangedPaths: Array.from(apiChangedPaths),
-      testMode: typeof testModeToggle?.checked === "boolean" ? testModeToggle.checked : null
+      apiChangedPaths: Array.from(apiChangedPaths)
     };
   }
 
@@ -808,8 +806,6 @@ function updateSourceInfoUI() {
     userChangedPathsCurrent = new Set(snap.userChangedPathsCurrent || []);
     userChangedPathsPrevious = new Set(snap.userChangedPathsPrevious || []);
     apiChangedPaths = new Set(snap.apiChangedPaths || []);
-
-    if (typeof snap.testMode === "boolean" && testModeToggle) testModeToggle.checked = snap.testMode;
 
     // schema補正（v1.1.2）
     normalizePayloadForSchema(currentPayload);
@@ -888,34 +884,8 @@ function updateSourceInfoUI() {
     });
   }
 
-  // 初期状態
-  try {
-    const state = await window.api.getState();
-    if (state && typeof state.testMode === "boolean" && testModeToggle) {
-      testModeToggle.checked = state.testMode;
-      setStatus(state.testMode ? "（テストモード）" : "（本番モード・API接続）");
-    }
-  } catch (err) {
-    console.error("getState error:", err);
-    setStatus("状態取得に失敗しました");
-  }
-
   updateRestoreButtonEnabled();
   updateRedoButtonEnabled();
-
-  // テストモード切り替え
-  if (testModeToggle) {
-    testModeToggle.addEventListener("change", async () => {
-      const value = testModeToggle.checked;
-      try {
-        const state = await window.api.setTestMode(value);
-        setStatus(state.testMode ? "（テストモード）" : "（本番モード・API接続）");
-      } catch (err) {
-        console.error("setTestMode error:", err);
-        setStatus("テストモード切り替えに失敗しました");
-      }
-    });
-  }
 
   // 変更ハイライト切り替え
   if (changeHighlightToggle) {
@@ -2346,7 +2316,8 @@ function updateSourceInfoUI() {
 
         promptTextarea.value = combined;
 
-        setStatus("RFC6902 JSON Patch を生成し、更新用プロンプト欄にセットしました（operations=" + patch.length + "）");
+        setStatus("RFC6902 JSON Patch を生成し、修正プロンプト欄にセットしました（operations=" + patch.length + "）");
+        setPageMode("prompt");
       } catch (err) {
         console.error("getPrompt(update) error:", err);
         setStatus("更新用プロンプトの読み込みに失敗しました");
@@ -4483,5 +4454,5 @@ function updateSourceInfoUI() {
   syncSiteCostEditorForSelection();
   renderItemsTable();
   syncEstimateToUI();
-  setPageMode("extract");
+  setPageMode("prompt");
 });
