@@ -9,6 +9,7 @@
     "stage",
     "extractedAt",
     "nlCorrectionGlobal",
+    "projectInfo",
     "woodworkItems",
     "floorItems",
     "finishingItems",
@@ -18,7 +19,7 @@
     "signItems"
   ],
   "properties": {
-    "version": { "type": "string", "default": "1.1.16" },
+    "version": { "type": "string", "default": "1.1.17" },
     "stage": { "type": "string", "enum": ["extraction", "review", "ready_for_estimation"] },
     "extractedAt": { "type": "string", "format": "date-time" },
 
@@ -30,6 +31,15 @@
         "page": { "type": "integer", "minimum": 1 },
         "dpi": { "type": "number", "minimum": 1 },
         "notes": { "type": "string" }
+      }
+    },
+
+    "projectInfo": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "clientName": { "type": "string" },
+        "eventName": { "type": "string" }
       }
     },
 

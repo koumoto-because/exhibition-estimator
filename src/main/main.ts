@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, dialog } from "electron";
+import { app, BrowserWindow, ipcMain, dialog, Menu } from "electron";
 import * as path from "path";
 import * as fs from "fs";
 import * as dotenv from "dotenv";
@@ -9,6 +9,7 @@ dotenv.config({ path: path.join(APP_ROOT, ".env") });
 
 let mainWindow: BrowserWindow | null = null;
 let isTestMode = process.env.APP_MODE === "test";
+let lastStateSavePath: string | null = null;
 
 function getPromptFilename(stage: string) {
   switch (stage) {
@@ -117,6 +118,69 @@ function createWindow() {
 
 app.whenReady().then(() => {
   createWindow();
+  const template: Electron.MenuItemConstructorOptions[] = [
+    {
+      label: app.getName(),
+      submenu: [
+        { role: "about" },
+        { type: "separator" },
+        { role: "services" },
+        { type: "separator" },
+        { role: "hide" },
+        { role: "hideOthers" },
+        { role: "unhide" },
+        { type: "separator" },
+        { role: "quit" }
+      ]
+    },
+    {
+      label: "ファイル",
+      submenu: [
+        {
+          label: "ファイルを開く",
+          accelerator: "CmdOrCtrl+O",
+          click: async () => {
+            if (!mainWindow) return;
+            const result = await dialog.showOpenDialog(mainWindow, {
+              title: "状態JSONを開く",
+              filters: [{ name: "JSON", extensions: ["json"] }],
+              properties: ["openFile"]
+            });
+            if (result.canceled || !result.filePaths.length) return;
+            const filePath = result.filePaths[0];
+            const text = readTextSafe(filePath);
+            if (!text) {
+              mainWindow.webContents.send("state:openResult", {
+                ok: false,
+                error: `ファイルを読み込めませんでした: ${filePath}`
+              });
+              return;
+            }
+            lastStateSavePath = filePath;
+            mainWindow.webContents.send("state:openResult", { ok: true, text, path: filePath });
+          }
+        },
+        {
+          label: "保存",
+          accelerator: "CmdOrCtrl+S",
+          click: () => {
+            if (!mainWindow) return;
+            mainWindow.webContents.send("state:saveRequest", { saveAs: false });
+          }
+        },
+        {
+          label: "名前を付けて保存",
+          accelerator: "CmdOrCtrl+Shift+S",
+          click: () => {
+            if (!mainWindow) return;
+            mainWindow.webContents.send("state:saveRequest", { saveAs: true });
+          }
+        }
+      ]
+    }
+  ];
+  const menu = Menu.buildFromTemplate(template);
+  Menu.setApplicationMenu(menu);
 });
 
 ipcMain.handle("app:getState", async () => ({ testMode: isTestMode }));
@@ -301,5 +365,38 @@ ipcMain.handle("estimate:exportXlsx", async (_e, payload) => {
   } catch (err: any) {
     console.error(err);
     return { ok: false, error: "xlsx出力に失敗しました。" };
+  }
+});
+
+ipcMain.handle("state:save", async (_e, payload) => {
+  try {
+    const data = payload && typeof payload === "object" ? payload.data : null;
+    if (typeof data !== "string") {
+      return { ok: false, error: "保存データが不正です。" };
+    }
+
+    const saveAs = !!(payload && typeof payload === "object" && payload.saveAs);
+    let targetPath = !saveAs && lastStateSavePath ? lastStateSavePath : null;
+
+    if (!targetPath) {
+      const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+      const defaultName = `takeoff-state-${timestamp}.json`;
+      const result = await dialog.showSaveDialog({
+        title: "状態を保存",
+        defaultPath: path.join(APP_ROOT, defaultName),
+        filters: [{ name: "JSON", extensions: ["json"] }]
+      });
+      if (result.canceled || !result.filePath) {
+        return { ok: false, error: "保存がキャンセルされました。" };
+      }
+      targetPath = result.filePath;
+    }
+
+    fs.writeFileSync(targetPath, data, "utf-8");
+    lastStateSavePath = targetPath;
+    return { ok: true, path: targetPath };
+  } catch (err) {
+    console.error("state:save error:", err);
+    return { ok: false, error: "保存中にエラーが発生しました。" };
   }
 });

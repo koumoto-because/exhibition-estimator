@@ -30,6 +30,23 @@ type EstimateExportResult = {
   error?: string;
 };
 
+type StateSaveResult = {
+  ok: boolean;
+  path?: string;
+  error?: string;
+};
+
+type StateOpenResult = {
+  ok: boolean;
+  text?: string;
+  path?: string;
+  error?: string;
+};
+
+type StateSaveRequest = {
+  saveAs?: boolean;
+};
+
 contextBridge.exposeInMainWorld("api", {
   // --- App state ---
   getState: async (): Promise<AppState> => {
@@ -51,6 +68,16 @@ contextBridge.exposeInMainWorld("api", {
   exportEstimateXlsx: async (payload: unknown): Promise<EstimateExportResult> => {
     const res = (await ipcRenderer.invoke("estimate:exportXlsx", payload)) as EstimateExportResult;
     return res;
+  },
+  saveState: async (data: string, saveAs = false): Promise<StateSaveResult> => {
+    const res = (await ipcRenderer.invoke("state:save", { data, saveAs })) as StateSaveResult;
+    return res;
+  },
+  onStateOpen: (cb: (result: StateOpenResult) => void) => {
+    ipcRenderer.on("state:openResult", (_e, result: StateOpenResult) => cb(result));
+  },
+  onStateSaveRequest: (cb: (result: StateSaveRequest) => void) => {
+    ipcRenderer.on("state:saveRequest", (_e, result: StateSaveRequest) => cb(result));
   }
 });
 
@@ -62,6 +89,9 @@ declare global {
       setTestMode: (value: boolean) => Promise<AppState>;
       getPrompt: (stage: string) => Promise<PromptGetResult>;
       exportEstimateXlsx: (payload: unknown) => Promise<EstimateExportResult>;
+      saveState: (data: string, saveAs?: boolean) => Promise<StateSaveResult>;
+      onStateOpen: (cb: (result: StateOpenResult) => void) => void;
+      onStateSaveRequest: (cb: (result: StateSaveRequest) => void) => void;
     };
   }
 }

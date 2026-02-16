@@ -1,7 +1,7 @@
 // src/renderer/renderer.js
 
 // ===== Schema compatibility =====
-const SCHEMA_VERSION = "1.1.16";
+const SCHEMA_VERSION = "1.1.17";
 
 const CATEGORIES = [
   { key: "woodworkItems", label: "木工造作物" },
@@ -776,6 +776,8 @@ function updateSourceInfoUI() {
       timestamp: new Date().toISOString(),
       basePayload: basePayload ? deepClone(basePayload) : null,
       currentPayload: currentPayload ? deepClone(currentPayload) : null,
+      estimatePayload: estimatePayload ? deepClone(estimatePayload) : null,
+      estimateSelectedGroupIndex,
       selectedIndex,
       selectedCategoryKey,
       userChangedPathsCurrent: Array.from(userChangedPathsCurrent),
@@ -796,6 +798,10 @@ function updateSourceInfoUI() {
   function applySnapshot(snap) {
     basePayload = snap.basePayload ? deepClone(snap.basePayload) : null;
     currentPayload = snap.currentPayload ? deepClone(snap.currentPayload) : null;
+    estimatePayload = snap.estimatePayload ? deepClone(snap.estimatePayload) : null;
+    estimateSelectedGroupIndex = Number.isInteger(snap.estimateSelectedGroupIndex)
+      ? snap.estimateSelectedGroupIndex
+      : null;
     selectedIndex = typeof snap.selectedIndex === "number" ? snap.selectedIndex : null;
     if (typeof snap.selectedCategoryKey === "string") selectedCategoryKey = snap.selectedCategoryKey;
 
@@ -813,6 +819,7 @@ function updateSourceInfoUI() {
     syncNlCategoryToUI();
     updateSourceInfoUI();
     renderCategoryTabs();
+    syncEstimateToUI();
 
     renderItemsTable();
     resetForm();
@@ -927,8 +934,11 @@ function updateSourceInfoUI() {
   // キーボードショートカット: Undo/Redo
   document.addEventListener("keydown", (event) => {
     const isMac = navigator.platform && navigator.platform.toLowerCase().includes("mac");
-    const isUndoKey = (isMac ? event.metaKey : event.ctrlKey) && event.key.toLowerCase() === "z";
-    if (!isUndoKey) return;
+    const isModifier = isMac ? event.metaKey : event.ctrlKey;
+    const key = event.key.toLowerCase();
+    const isUndoKey = isModifier && key === "z";
+    const isSaveKey = isModifier && key === "s";
+    if (!isUndoKey && !isSaveKey) return;
 
     const target = event.target;
     const isEditable =
@@ -936,9 +946,14 @@ function updateSourceInfoUI() {
       ((target.tagName === "INPUT" && target.type !== "checkbox") ||
         target.tagName === "TEXTAREA" ||
         target.isContentEditable);
-    if (isEditable) return;
+    if (isEditable && isUndoKey) return;
 
     event.preventDefault();
+    if (isSaveKey) {
+      const saveAs = event.shiftKey;
+      saveStateToFile(saveAs);
+      return;
+    }
     if (event.shiftKey) redoState();
     else restorePreviousState();
   });
@@ -2341,29 +2356,28 @@ function updateSourceInfoUI() {
 
 
   // 状態ファイル保存
+  async function saveStateToFile(saveAs) {
+    if (!basePayload && !currentPayload) {
+      alert("保存できる状態がまだありません。先にJSONを取り込んでください。");
+      return;
+    }
+    if (!window.api || !window.api.saveState) {
+      alert("保存APIが利用できません。アプリを再起動してください。");
+      return;
+    }
+    const snap = buildStateSnapshot();
+    const jsonText = JSON.stringify(snap, null, 2);
+    const result = await window.api.saveState(jsonText, !!saveAs);
+    if (result && result.ok) {
+      setStatus(`状態を保存しました: ${result.path || ""}`);
+    } else {
+      setStatus(result && result.error ? result.error : "状態の保存に失敗しました");
+    }
+  }
+
   if (btnExportStateFile) {
     btnExportStateFile.addEventListener("click", () => {
-      if (!basePayload && !currentPayload) {
-        alert("エクスポートできる状態がまだありません。先にJSONを取り込んでください。");
-        return;
-      }
-      const snap = buildStateSnapshot();
-      const jsonText = JSON.stringify(snap, null, 2);
-      const blob = new Blob([jsonText], { type: "application/json" });
-
-      const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-      const filename = `takeoff-state-${timestamp}.json`;
-
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-
-      setStatus("現在の状態をファイルに保存しました");
+      saveStateToFile(true);
     });
   }
 
@@ -2410,6 +2424,42 @@ function updateSourceInfoUI() {
       };
 
       reader.readAsText(file);
+    });
+  }
+
+  if (window.api && window.api.onStateOpen) {
+    window.api.onStateOpen((result) => {
+      if (!result || !result.ok || !result.text) {
+        const msg = result && result.error ? result.error : "ファイル読み込みに失敗しました。";
+        alert(msg);
+        return;
+      }
+      let snap;
+      try {
+        snap = JSON.parse(result.text);
+      } catch (err) {
+        console.error("state JSON parse error:", err);
+        alert("状態JSONとして解析できませんでした。エクスポートしたJSONファイルを使用してください。");
+        return;
+      }
+
+      if (!("basePayload" in snap) || !("currentPayload" in snap)) {
+        alert("状態JSONの形式が想定と異なります。エクスポートしたJSONファイルを使用してください。");
+        return;
+      }
+
+      if (basePayload || currentPayload) pushStateHistory(true);
+      applySnapshot(snap);
+      updateRestoreButtonEnabled();
+      updateRedoButtonEnabled();
+      setStatus(`状態ファイル「${result.path || ""}」を読み込み、状態を復元しました`);
+    });
+  }
+
+  if (window.api && window.api.onStateSaveRequest) {
+    window.api.onStateSaveRequest((result) => {
+      const saveAs = !!(result && result.saveAs);
+      saveStateToFile(saveAs);
     });
   }
 
@@ -3384,6 +3434,9 @@ function updateSourceInfoUI() {
     if (payload.stage === "estimate") payload.stage = "ready_for_estimation";
     if (typeof payload.extractedAt !== "string") payload.extractedAt = new Date().toISOString();
     if (typeof payload.nlCorrectionGlobal !== "string") payload.nlCorrectionGlobal = "";
+    if (!payload.projectInfo || typeof payload.projectInfo !== "object") payload.projectInfo = {};
+    if (typeof payload.projectInfo.clientName !== "string") payload.projectInfo.clientName = "";
+    if (typeof payload.projectInfo.eventName !== "string") payload.projectInfo.eventName = "";
     if (typeof payload.nlCorrectionWoodworkItems !== "string") payload.nlCorrectionWoodworkItems = "";
     if (typeof payload.nlCorrectionFloorItems !== "string") payload.nlCorrectionFloorItems = "";
     if (typeof payload.nlCorrectionFinishingItems !== "string") payload.nlCorrectionFinishingItems = "";
@@ -4104,6 +4157,20 @@ function updateSourceInfoUI() {
 
   function syncEstimateHeaderToUI() {
     ensureEstimatePayload();
+    if (
+      currentPayload &&
+      currentPayload.projectInfo &&
+      typeof currentPayload.projectInfo === "object"
+    ) {
+      if (estimateClientInput && !estimateClientInput.value) {
+        estimateClientInput.value = currentPayload.projectInfo.clientName || "";
+      }
+      if (estimateTitleInput && !estimateTitleInput.value) {
+        estimateTitleInput.value = currentPayload.projectInfo.eventName || "";
+      }
+      if (estimateClientInput) estimatePayload.client = { name: estimateClientInput.value || "" };
+      if (estimateTitleInput) estimatePayload.title = estimateTitleInput.value || "";
+    }
     if (estimateTitleInput) estimateTitleInput.value = estimatePayload.title || "";
     if (estimateClientInput) estimateClientInput.value = estimatePayload.client?.name || "";
     if (estimateTotalAmountInput) estimateTotalAmountInput.value = estimatePayload.total?.amount ?? "";

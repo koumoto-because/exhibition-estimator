@@ -17,6 +17,7 @@ thinkingモデルを使用しTemperatureを0.1にして正確な回答を行な�
 - nlCorrection はユーザー入力欄なので空文字を入力すること
 - 推論ルール（抽出時の前提）に従うこと。
 - 参照元の明記は不要
+- 図面からクライアント名やイベント名が判読できる場合は projectInfo.clientName / projectInfo.eventName に記入する（不明なら空文字）。
 - 各構造物に可能な限り drawing.refs を付与する。drawing.refs は [{ page, bbox }] の配列で、bbox は図面左上を原点とした正規化座標（x,y,width,height を 0〜1 の範囲）で指定する。参照箇所が単一の場合も配列で出力する。
 
 【木工造作物用推論ルール（抽出時の前提）】
