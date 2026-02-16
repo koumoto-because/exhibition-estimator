@@ -1,7 +1,7 @@
 // src/renderer/renderer.js
 
 // ===== Schema compatibility =====
-const SCHEMA_VERSION = "1.1.13";
+const SCHEMA_VERSION = "1.1.16";
 
 const CATEGORIES = [
   { key: "woodworkItems", label: "木工造作物" },
@@ -68,12 +68,26 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   const itemsView = document.getElementById("items-view");
   const itemEditorContainer = document.getElementById("item-editor-container");
+  const drawingFileInput = document.getElementById("drawing-file-input");
+  const drawingContainer = document.getElementById("drawing-container");
+  const drawingLayer = document.getElementById("drawing-layer");
+  const drawingImage = document.getElementById("drawing-image");
+  const drawingPdf = document.getElementById("drawing-pdf");
+  const drawingHighlight = document.getElementById("drawing-highlight");
+  const drawingInfo = document.getElementById("drawing-info");
+  const drawingZoomRange = document.getElementById("drawing-zoom-range");
+  const drawingZoomLabel = document.getElementById("drawing-zoom-label");
+  const drawingHighlightToggle = document.getElementById("drawing-highlight-toggle");
 
   // page tabs
   const pageTabExtract = document.getElementById("page-tab-extract");
   const pageTabEstimate = document.getElementById("page-tab-estimate");
+  const pageTabPrompt = document.getElementById("page-tab-prompt");
   const extractPage = document.getElementById("extract-page");
   const estimatePage = document.getElementById("estimate-page");
+  const promptPage = document.getElementById("prompt-page");
+  const leftColumn = document.getElementById("left-column");
+  const columnResizer = document.getElementById("column-resizer");
 
   // nlCorrection per category
   const nlWoodworkTextarea = document.getElementById("nl-woodwork");
@@ -200,6 +214,18 @@ document.addEventListener("DOMContentLoaded", async () => {
   const FINISH_KIND_OPTIONS = ["メラミン", "ポリ板", "経師", "出力シート", "塗装"];
   const FINISH_UNIT_OPTIONS = ["m²", "枚", "ロール", "m"];
 
+  let drawingObjectUrl = null;
+  let drawingDisplayReady = false;
+  let drawingMode = "none";
+  let currentPdfPage = 1;
+  let pdfDoc = null;
+  let pdfPageCanvases = new Map();
+  let pdfRenderToken = 0;
+  let pdfWorkerReady = false;
+  let pdfZoom = 1;
+  let drawingRefCursor = {};
+  let lastSelectedItemId = null;
+
 
 
 
@@ -217,6 +243,337 @@ function getSourceMetaText(payload) {
   const page = typeof sd.page === "number" ? ` / page:${sd.page}` : "";
   return `図面ファイル: ${fn}${page}`;
 }
+
+  function setDrawingInfo(text) {
+    if (drawingInfo) drawingInfo.textContent = text || "";
+  }
+
+  function clearPdfRenderState() {
+    pdfDoc = null;
+    pdfPageCanvases = new Map();
+    if (drawingPdf) drawingPdf.innerHTML = "";
+  }
+
+  function getPdfBaseScaleForWidth(pageViewportWidth) {
+    const containerWidth = drawingContainer ? drawingContainer.clientWidth : 0;
+    const available = containerWidth > 0 ? containerWidth - 16 : 0;
+    if (available <= 0) return 1;
+    return available / pageViewportWidth;
+  }
+
+  function updatePdfCanvasScale() {
+    pdfPageCanvases.forEach((canvas) => {
+      if (!canvas) return;
+      const baseWidth = Number(canvas.dataset.baseWidth);
+      const baseHeight = Number(canvas.dataset.baseHeight);
+      if (!Number.isFinite(baseWidth) || !Number.isFinite(baseHeight)) return;
+      const nextWidth = baseWidth * pdfZoom;
+      const nextHeight = baseHeight * pdfZoom;
+      canvas.style.width = `${nextWidth}px`;
+      canvas.style.height = `${nextHeight}px`;
+    });
+    if (drawingLayer) {
+      drawingLayer.style.width = "fit-content";
+    }
+  }
+
+  async function renderPdfFile(file) {
+    if (!drawingPdf) return;
+    const pdfjsLib = window.pdfjsLib;
+    if (!pdfjsLib) {
+      setStatus("PDF描画ライブラリが見つかりませんでした。");
+      return;
+    }
+    if (!pdfWorkerReady) {
+      const workerUrl = new URL("../../node_modules/pdfjs-dist/build/pdf.worker.mjs", window.location.href);
+      pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl.toString();
+      pdfjsLib.disableWorker = true;
+      pdfWorkerReady = true;
+    }
+
+    drawingDisplayReady = false;
+    clearPdfRenderState();
+    setDrawingMode("pdf");
+
+    const token = ++pdfRenderToken;
+    const arrayBuffer = await file.arrayBuffer();
+    const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
+    const doc = await loadingTask.promise;
+    if (token !== pdfRenderToken) return;
+
+    pdfDoc = doc;
+    let maxPageWidth = 0;
+    for (let pageNum = 1; pageNum <= doc.numPages; pageNum++) {
+      const page = await doc.getPage(pageNum);
+      if (token !== pdfRenderToken) return;
+      const baseViewport = page.getViewport({ scale: 1 });
+      maxPageWidth = Math.max(maxPageWidth, baseViewport.width);
+    }
+    const baseScale = getPdfBaseScaleForWidth(maxPageWidth) * 1.3;
+    const renderScale = baseScale * 3;
+
+    pdfPageCanvases = new Map();
+    if (drawingPdf) drawingPdf.innerHTML = "";
+    for (let pageNum = 1; pageNum <= doc.numPages; pageNum++) {
+      const page = await doc.getPage(pageNum);
+      if (token !== pdfRenderToken) return;
+      const baseViewport = page.getViewport({ scale: baseScale });
+      const renderViewport = page.getViewport({ scale: renderScale });
+      const canvas = document.createElement("canvas");
+      canvas.dataset.page = String(pageNum);
+      canvas.dataset.baseWidth = String(baseViewport.width);
+      canvas.dataset.baseHeight = String(baseViewport.height);
+      canvas.width = Math.floor(renderViewport.width);
+      canvas.height = Math.floor(renderViewport.height);
+      canvas.style.width = `${baseViewport.width * pdfZoom}px`;
+      canvas.style.height = `${baseViewport.height * pdfZoom}px`;
+      drawingPdf.appendChild(canvas);
+      pdfPageCanvases.set(pageNum, canvas);
+      const ctx = canvas.getContext("2d");
+      if (ctx) {
+        await page.render({ canvasContext: ctx, viewport: renderViewport }).promise;
+      }
+    }
+
+    drawingDisplayReady = true;
+    refreshDrawingHighlightForSelection();
+  }
+
+  function updateZoomLabel() {
+    if (!drawingZoomLabel) return;
+    drawingZoomLabel.textContent = `${Math.round(pdfZoom * 100)}%`;
+  }
+
+  function capturePdfScrollAnchor() {
+    if (!drawingContainer || drawingMode !== "pdf") return null;
+    const scrollTop = drawingContainer.scrollTop;
+    const viewMid = scrollTop + drawingContainer.clientHeight / 2;
+    let anchorPage = 1;
+    let anchorRatio = 0;
+    let bestOffset = -Infinity;
+    pdfPageCanvases.forEach((canvas, pageNum) => {
+      if (!canvas) return;
+      const offsetTop = canvas.offsetTop;
+      if (offsetTop <= viewMid && offsetTop >= bestOffset) {
+        bestOffset = offsetTop;
+        anchorPage = pageNum;
+        const offsetInPage = viewMid - offsetTop;
+        anchorRatio = canvas.offsetHeight > 0 ? offsetInPage / canvas.offsetHeight : 0;
+      }
+    });
+    return { page: anchorPage, ratio: anchorRatio };
+  }
+
+  function restorePdfScrollAnchor(anchor) {
+    if (!anchor || !drawingContainer) return;
+    const doScroll = () => {
+      const canvas = pdfPageCanvases.get(anchor.page);
+      if (!canvas) return;
+      const offsetTop = canvas.offsetTop;
+      const offsetInPage = canvas.offsetHeight * anchor.ratio;
+      const targetTop = Math.max(0, offsetTop + offsetInPage - drawingContainer.clientHeight / 2);
+      drawingContainer.scrollTop = targetTop;
+    };
+    requestAnimationFrame(() => {
+      doScroll();
+      requestAnimationFrame(() => doScroll());
+    });
+  }
+
+  function setDrawingMode(mode) {
+    drawingMode = mode;
+    if (drawingImage) drawingImage.style.display = mode === "image" ? "block" : "none";
+    if (drawingPdf) drawingPdf.style.display = mode === "pdf" ? "block" : "none";
+  }
+
+  function getDrawingDisplayEl() {
+    if (drawingMode === "image") return drawingImage;
+    return null;
+  }
+
+  function getPdfCanvasForItem(item) {
+    if (drawingMode !== "pdf") return null;
+    const drawing = item && typeof item === "object" ? item.drawing : null;
+    const targetPage = drawing && typeof drawing.page === "number" ? drawing.page : 1;
+    const canvas = pdfPageCanvases.get(targetPage) || null;
+    if (!canvas) return null;
+    currentPdfPage = targetPage;
+    return canvas;
+  }
+
+  function clearDrawingHighlight() {
+    if (!drawingHighlight) return;
+    drawingHighlight.innerHTML = "";
+    drawingHighlight.style.display = "none";
+  }
+
+  function getDrawingBoxFrom(obj) {
+    if (!obj || typeof obj !== "object") return null;
+    const bbox = obj.bbox && typeof obj.bbox === "object" ? obj.bbox : obj;
+    if (!bbox) return null;
+    const x = Number(bbox.x);
+    const y = Number(bbox.y);
+    const width = Number(bbox.width);
+    const height = Number(bbox.height);
+    if (![x, y, width, height].every((v) => Number.isFinite(v))) return null;
+    if (width <= 0 || height <= 0) return null;
+    return { x, y, width, height };
+  }
+
+  function getDrawingRefs(item) {
+    if (!item || typeof item !== "object") return [];
+    const drawing = item.drawing && typeof item.drawing === "object" ? item.drawing : null;
+    if (!drawing) return [];
+    const refs = [];
+    if (Array.isArray(drawing.refs)) {
+      drawing.refs.forEach((ref) => {
+        if (!ref || typeof ref !== "object") return;
+        const bbox = getDrawingBoxFrom(ref.bbox);
+        if (!bbox) return;
+        const page = typeof ref.page === "number" ? ref.page : 1;
+        refs.push({ page, bbox });
+      });
+      if (refs.length) return refs;
+    }
+    if (Array.isArray(drawing.bboxes)) {
+      drawing.bboxes.forEach((bboxObj) => {
+        const bbox = getDrawingBoxFrom(bboxObj);
+        if (!bbox) return;
+        const page = typeof drawing.page === "number" ? drawing.page : 1;
+        refs.push({ page, bbox });
+      });
+      if (refs.length) return refs;
+    }
+    const singleBox = getDrawingBoxFrom(drawing);
+    if (singleBox) {
+      const page = typeof drawing.page === "number" ? drawing.page : 1;
+      refs.push({ page, bbox: singleBox });
+    }
+    return refs;
+  }
+
+  function renderHighlightBoxes(boxes) {
+    if (!drawingHighlight) return;
+    drawingHighlight.innerHTML = "";
+    if (!boxes.length) {
+      drawingHighlight.style.display = "none";
+      return;
+    }
+    boxes.forEach((box) => {
+      const el = document.createElement("div");
+      el.className = "drawing-highlight-box";
+      el.style.left = `${box.left}px`;
+      el.style.top = `${box.top}px`;
+      el.style.width = `${box.width}px`;
+      el.style.height = `${box.height}px`;
+      drawingHighlight.appendChild(el);
+    });
+    drawingHighlight.style.display = "block";
+  }
+
+  function applyDrawingHighlight(item, skipScroll, refIndexOverride) {
+    let displayEl = getDrawingDisplayEl();
+    if (drawingMode === "pdf") {
+      const refs = getDrawingRefs(item);
+      if (!refs.length) {
+        clearDrawingHighlight();
+        return;
+      }
+      const itemId = item && typeof item.id === "string" ? item.id : null;
+      let nextIndex = typeof refIndexOverride === "number" ? refIndexOverride : 0;
+      if (itemId && refIndexOverride == null) {
+        const prevIndex = typeof drawingRefCursor[itemId] === "number" ? drawingRefCursor[itemId] : -1;
+        nextIndex = (prevIndex + 1) % refs.length;
+        drawingRefCursor[itemId] = nextIndex;
+      }
+      if (itemId && refIndexOverride != null) {
+        drawingRefCursor[itemId] = nextIndex;
+      }
+      if (!refs[nextIndex]) nextIndex = 0;
+      const targetRef = refs[nextIndex];
+      displayEl = getPdfCanvasForItem({ drawing: { page: targetRef.page } });
+      if (!displayEl) {
+        clearDrawingHighlight();
+        return;
+      }
+      currentPdfPage = targetRef.page;
+      if (!skipScroll) {
+        const targetScroll = Math.max(0, displayEl.offsetTop - 8);
+        drawingContainer.scrollTo({ top: targetScroll, behavior: "auto" });
+        requestAnimationFrame(() => applyDrawingHighlight(item, true, nextIndex));
+        return;
+      }
+      const boxes = refs.map((ref, idx) => {
+        if (idx !== nextIndex) return null;
+        const canvasWidth = displayEl.offsetWidth;
+        const canvasHeight = displayEl.offsetHeight;
+        return {
+          left: displayEl.offsetLeft + ref.bbox.x * canvasWidth,
+          top: displayEl.offsetTop + ref.bbox.y * canvasHeight,
+          width: ref.bbox.width * canvasWidth,
+          height: ref.bbox.height * canvasHeight
+        };
+      }).filter(Boolean);
+      renderHighlightBoxes(boxes);
+      return;
+    }
+    if (
+      !drawingContainer ||
+      !displayEl ||
+      !drawingHighlight ||
+      !drawingDisplayReady ||
+      (drawingHighlightToggle && !drawingHighlightToggle.checked)
+    ) {
+      clearDrawingHighlight();
+      return;
+    }
+    const refs = getDrawingRefs(item);
+    if (!refs.length) {
+      clearDrawingHighlight();
+      return;
+    }
+    const itemId = item && typeof item.id === "string" ? item.id : null;
+    let nextIndex = typeof refIndexOverride === "number" ? refIndexOverride : 0;
+    if (itemId && refIndexOverride == null) {
+      const prevIndex = typeof drawingRefCursor[itemId] === "number" ? drawingRefCursor[itemId] : -1;
+      nextIndex = (prevIndex + 1) % refs.length;
+      drawingRefCursor[itemId] = nextIndex;
+    }
+    if (itemId && refIndexOverride != null) {
+      drawingRefCursor[itemId] = nextIndex;
+    }
+    if (!refs[nextIndex]) nextIndex = 0;
+    const targetRef = refs[nextIndex];
+
+    const containerRect = drawingContainer.getBoundingClientRect();
+    const displayRect = displayEl.getBoundingClientRect();
+    if (displayRect.width <= 0 || displayRect.height <= 0) {
+      clearDrawingHighlight();
+      return;
+    }
+    const boxes = [
+      {
+        left: displayRect.left - containerRect.left + targetRef.bbox.x * displayRect.width,
+        top: displayRect.top - containerRect.top + targetRef.bbox.y * displayRect.height,
+        width: targetRef.bbox.width * displayRect.width,
+        height: targetRef.bbox.height * displayRect.height
+      }
+    ];
+    renderHighlightBoxes(boxes);
+  }
+
+  function refreshDrawingHighlightForSelection(skipScroll) {
+    if (
+      selectedCategoryKey === "siteCosts" ||
+      selectedIndex == null ||
+      (drawingHighlightToggle && !drawingHighlightToggle.checked)
+    ) {
+      clearDrawingHighlight();
+      return;
+    }
+    const items = getItems();
+    applyDrawingHighlight(items[selectedIndex], skipScroll, 0);
+  }
 
 function ensureSourceInfoEl() {
   let el = document.getElementById("source-info");
@@ -252,6 +609,92 @@ function updateSourceInfoUI() {
   el.textContent = getSourceMetaText(p);
   el.title = getSourceFilename(p) || "";
 }
+
+  if (drawingFileInput) {
+    drawingFileInput.addEventListener("change", (event) => {
+      const input = event.target;
+      const file = input && input.files ? input.files[0] : null;
+      if (!file) return;
+
+      if (drawingObjectUrl) {
+        URL.revokeObjectURL(drawingObjectUrl);
+        drawingObjectUrl = null;
+      }
+
+      drawingDisplayReady = false;
+      clearDrawingHighlight();
+
+      if (!drawingImage || !drawingPdf) return;
+
+      if (file.type && file.type.startsWith("image/")) {
+        drawingObjectUrl = URL.createObjectURL(file);
+        drawingImage.src = drawingObjectUrl;
+        clearPdfRenderState();
+        setDrawingMode("image");
+        setDrawingInfo(`図面ファイル: ${file.name}`);
+      } else if (file.type === "application/pdf") {
+        drawingObjectUrl = null;
+        currentPdfPage = 1;
+        renderPdfFile(file).catch((err) => {
+          console.error("PDF render failed:", err);
+          setStatus("PDFの描画に失敗しました。");
+        });
+        if (drawingZoomRange) drawingZoomRange.value = String(pdfZoom);
+        updateZoomLabel();
+        setDrawingInfo(`図面ファイル: ${file.name}`);
+      } else {
+        drawingImage.removeAttribute("src");
+        clearPdfRenderState();
+        setDrawingMode("none");
+        setDrawingInfo(`図面ファイル: ${file.name}（プレビュー非対応）`);
+      }
+    });
+  }
+
+  if (drawingImage) {
+    drawingImage.addEventListener("load", () => {
+      drawingDisplayReady = true;
+      refreshDrawingHighlightForSelection();
+    });
+    drawingImage.addEventListener("error", () => {
+      drawingDisplayReady = false;
+      setDrawingInfo("図面ファイル: 読み込みに失敗しました");
+      clearDrawingHighlight();
+    });
+  }
+
+  if (drawingContainer) {
+    drawingContainer.addEventListener("scroll", () => {
+      if (drawingMode === "pdf") refreshDrawingHighlightForSelection(true);
+    });
+  }
+
+  if (drawingZoomRange) {
+    drawingZoomRange.addEventListener("input", () => {
+      const nextZoom = parseFloat(drawingZoomRange.value);
+      if (!Number.isFinite(nextZoom) || nextZoom <= 0) return;
+      const anchor = capturePdfScrollAnchor();
+      pdfZoom = nextZoom;
+      updateZoomLabel();
+      if (drawingMode === "pdf" && pdfDoc) {
+        updatePdfCanvasScale();
+        restorePdfScrollAnchor(anchor);
+        refreshDrawingHighlightForSelection(true);
+      }
+    });
+    updateZoomLabel();
+  }
+
+  if (drawingHighlightToggle) {
+    drawingHighlightToggle.addEventListener("change", () => {
+      if (drawingHighlightToggle.checked) refreshDrawingHighlightForSelection(true);
+      else clearDrawingHighlight();
+    });
+  }
+
+  window.addEventListener("resize", () => {
+    refreshDrawingHighlightForSelection(true);
+  });
 
   function isHighlightEnabled() {
     return changeHighlightToggle ? changeHighlightToggle.checked : true;
@@ -471,6 +914,7 @@ function updateSourceInfoUI() {
   if (changeHighlightToggle) {
     changeHighlightToggle.addEventListener("change", () => {
       renderItemsTable();
+      refreshDrawingHighlightForSelection();
       updateCategoryHighlight();
       updateFormHighlightsForSelected();
     });
@@ -1088,6 +1532,40 @@ function updateSourceInfoUI() {
   }
   if (pageTabEstimate) {
     pageTabEstimate.addEventListener("click", () => setPageMode("estimate"));
+  }
+  if (pageTabPrompt) {
+    pageTabPrompt.addEventListener("click", () => setPageMode("prompt"));
+  }
+
+  if (columnResizer && leftColumn) {
+    let resizing = false;
+
+    const onMouseMove = (event) => {
+      if (!resizing) return;
+      const minWidth = 280;
+      const maxWidth = 1000;
+      const nextWidth = Math.min(maxWidth, Math.max(minWidth, event.clientX));
+      leftColumn.style.flex = `0 0 ${nextWidth}px`;
+      leftColumn.style.width = `${nextWidth}px`;
+    };
+
+    const onMouseUp = () => {
+      if (!resizing) return;
+      resizing = false;
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mouseup", onMouseUp);
+    };
+
+    columnResizer.addEventListener("mousedown", (event) => {
+      event.preventDefault();
+      resizing = true;
+      document.body.style.cursor = "col-resize";
+      document.body.style.userSelect = "none";
+      window.addEventListener("mousemove", onMouseMove);
+      window.addEventListener("mouseup", onMouseUp);
+    });
   }
 
   if (btnEstimateGenerate) {
@@ -1743,6 +2221,13 @@ function updateSourceInfoUI() {
 
       if (itemEditorLabel) itemEditorLabel.textContent = `ID: ${item.id || ""} / index: ${index}`;
 
+      const itemId = typeof item.id === "string" ? item.id : null;
+      if (itemId && itemId !== lastSelectedItemId) {
+        lastSelectedItemId = itemId;
+        applyDrawingHighlight(item, false, 0);
+      } else {
+        applyDrawingHighlight(item);
+      }
       renderItemsTable();
     });
   }
@@ -2961,6 +3446,39 @@ function updateSourceInfoUI() {
       if (!Array.isArray(payload[k])) payload[k] = [];
     });
 
+    const normalizeDrawingRefs = (item) => {
+      if (!item || typeof item !== "object") return;
+      const drawing = item.drawing && typeof item.drawing === "object" ? item.drawing : null;
+      if (!drawing) return;
+      if (Array.isArray(drawing.refs) && drawing.refs.length) return;
+      const refs = [];
+      if (Array.isArray(drawing.bboxes)) {
+        drawing.bboxes.forEach((bboxObj) => {
+          const bbox = getDrawingBoxFrom(bboxObj);
+          if (!bbox) return;
+          const page = typeof drawing.page === "number" ? drawing.page : 1;
+          refs.push({ page, bbox });
+        });
+      } else {
+        const bbox = getDrawingBoxFrom(drawing.bbox);
+        if (bbox) {
+          const page = typeof drawing.page === "number" ? drawing.page : 1;
+          refs.push({ page, bbox });
+        }
+      }
+      if (refs.length) {
+        drawing.refs = refs;
+      }
+      if ("bbox" in drawing) delete drawing.bbox;
+      if ("bboxes" in drawing) delete drawing.bboxes;
+      if ("page" in drawing) delete drawing.page;
+    };
+
+    categoryKeys.forEach((k) => {
+      if (!Array.isArray(payload[k])) return;
+      payload[k].forEach((item) => normalizeDrawingRefs(item));
+    });
+
     if (!payload.siteCosts || typeof payload.siteCosts !== "object" || Array.isArray(payload.siteCosts)) {
       payload.siteCosts = {};
     }
@@ -3400,11 +3918,19 @@ function updateSourceInfoUI() {
   }
 
   function setPageMode(mode) {
+    const isExtract = mode === "extract";
     const isEstimate = mode === "estimate";
-    if (extractPage) extractPage.hidden = isEstimate;
+    const isPrompt = mode === "prompt";
+
+    if (extractPage) extractPage.hidden = !isExtract;
     if (estimatePage) estimatePage.hidden = !isEstimate;
-    if (pageTabExtract) pageTabExtract.classList.toggle("active", !isEstimate);
+    if (promptPage) promptPage.hidden = !isPrompt;
+
+    if (pageTabExtract) pageTabExtract.classList.toggle("active", isExtract);
     if (pageTabEstimate) pageTabEstimate.classList.toggle("active", isEstimate);
+    if (pageTabPrompt) pageTabPrompt.classList.toggle("active", isPrompt);
+
+    if (leftColumn) leftColumn.hidden = !isExtract;
     if (isEstimate) syncEstimateToUI();
   }
 

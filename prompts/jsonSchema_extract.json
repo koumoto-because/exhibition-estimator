@@ -18,7 +18,7 @@
     "signItems"
   ],
   "properties": {
-    "version": { "type": "string", "default": "1.1.13" },
+    "version": { "type": "string", "default": "1.1.16" },
     "stage": { "type": "string", "enum": ["extraction", "review", "ready_for_estimation"] },
     "extractedAt": { "type": "string", "format": "date-time" },
 
@@ -133,6 +133,39 @@
       ]
     },
 
+    "drawingBox": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["x", "y", "width", "height"],
+      "properties": {
+        "x": { "type": "number", "minimum": 0, "maximum": 1 },
+        "y": { "type": "number", "minimum": 0, "maximum": 1 },
+        "width": { "type": "number", "exclusiveMinimum": 0, "maximum": 1 },
+        "height": { "type": "number", "exclusiveMinimum": 0, "maximum": 1 }
+      }
+    },
+
+    "drawingRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["bbox"],
+      "properties": {
+        "page": { "type": "integer", "minimum": 1 },
+        "bbox": { "$ref": "#/$defs/drawingBox" },
+        "notes": { "type": "string" }
+      }
+    },
+
+    "drawingInfo": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["refs"],
+      "properties": {
+        "refs": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/drawingRef" } },
+        "notes": { "type": "string" }
+      }
+    },
+
     "baseItemFields": {
       "type": "object",
       "additionalProperties": false,
@@ -147,7 +180,8 @@
           "description": "この項目（アイテム）に対する自然言語の修正指示"
         },
         "source": { "$ref": "#/$defs/sourceKind" },
-        "notes": { "type": "string" }
+        "notes": { "type": "string" },
+        "drawing": { "$ref": "#/$defs/drawingInfo" }
       }
     },
 

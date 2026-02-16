@@ -36,13 +36,20 @@
       }
 
       .column-left {
-        flex: 0 0 380px;
-        max-width: 420px;
+        flex: 0 0 420px;
+        max-width: 900px;
         border-right: 1px solid #ddd;
       }
 
       .column-right {
         flex: 1 1 auto;
+      }
+
+      #column-resizer {
+        width: 6px;
+        cursor: col-resize;
+        background: #f0f0f0;
+        border-right: 1px solid #ddd;
       }
 
       .section {
@@ -86,6 +93,7 @@
         display: flex;
         flex-direction: column;
         overflow: auto;
+        min-height: 0;
       }
 
       #prompt-area {
@@ -114,6 +122,7 @@
         flex: 1;
         padding: 8px 12px;
         box-sizing: border-box;
+        min-height: 0;
       }
 
       #items-view {
@@ -124,12 +133,66 @@
         margin-bottom: 8px;
       }
 
+      #drawing-container {
+        position: relative;
+        border: 1px solid #ddd;
+        background: #fafafa;
+        display: flex;
+        align-items: flex-start;
+        justify-content: flex-start;
+        min-height: 320px;
+        flex: 1 1 auto;
+        overflow: auto;
+      }
+
+      #drawing-layer {
+        position: relative;
+        width: 100%;
+      }
+
+      #drawing-image {
+        max-width: 100%;
+        display: none;
+      }
+
+      #drawing-pdf {
+        width: 100%;
+        display: none;
+        padding: 6px 0;
+        box-sizing: border-box;
+      }
+
+      #drawing-pdf canvas {
+        display: block;
+        margin: 0 auto 8px;
+        background: #fff;
+      }
+
+      #drawing-highlight {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        display: none;
+        pointer-events: none;
+        z-index: 5;
+      }
+
+      .drawing-highlight-box {
+        position: absolute;
+        border: 2px solid #ff8c00;
+        background: rgba(255, 140, 0, 0.2);
+        box-sizing: border-box;
+      }
+
       #items-view thead th {
         position: sticky;
         top: 0;
         background: #f0f0f0;
         z-index: 1;
       }
+
 
       #item-editor-container {
         flex: 1 1 auto;
@@ -527,91 +590,124 @@
     </header>
 
     <main>
-      <!-- 左カラム：プロンプト＋JSON貼り付け -->
-      <div class="column column-left">
-        <div id="left-scroll">
-          <div class="section">
-            <h2>1. プロンプト生成（ChatGPTに手動で投げる用）</h2>
-            <div>
-              <label for="stage-select">ステージ:</label>
-              <select id="stage-select">
-                <option value="extract">1: 図面→構造物抽出</option>
-                <option value="update">2: JSON差分反映</option>
-                <option value="estimate">3: 最終積算</option>
-              </select>
-              <button id="btn-load-prompt">プロンプト読込</button>
+      <!-- 左カラム：図面プレビュー -->
+      <div class="column column-left" id="left-column">
+        <div id="left-scroll" style="min-height: 0;">
+          <div class="section" id="drawing-panel" style="display: flex; flex-direction: column; min-height: 0; flex: 1 1 auto;">
+            <h2>図面プレビュー</h2>
+            <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+              <input id="drawing-file-input" type="file" accept="image/*,application/pdf" />
+              <label style="font-size: 11px; display: flex; align-items: center; gap: 4px;">
+                <input id="drawing-highlight-toggle" type="checkbox" checked />
+                ハイライト
+              </label>
+              <label style="font-size: 11px; display: flex; align-items: center; gap: 4px;">
+                ズーム
+                <input id="drawing-zoom-range" type="range" min="0.5" max="3" step="0.1" value="1" />
+                <span id="drawing-zoom-label">100%</span>
+              </label>
+              <span id="drawing-info" style="font-size: 11px; color: #666;">
+                図面ファイル:（未読み込み）
+              </span>
             </div>
-            <p style="font-size: 11px; margin-top: 4px;">
-              ※テストモード時：ここに表示されたプロンプトをChatGPTに貼り付け、図面ファイルも添付して実行してください。
-            </p>
-          </div>
-
-          <div id="prompt-area">
-            <textarea id="prompt-text" spellcheck="false"></textarea>
-          </div>
-
-          <div id="json-input-area">
-            <h2 style="font-size: 13px; margin: 0 0 4px;">
-              2. ChatGPT出力(JSON)の貼り付け
-            </h2>
-            <p style="font-size: 11px; margin-top: 2px;">
-              ChatGPTから返ってきたJSONを下に貼り付け、「JSONを取り込む」を押してください。
-            </p>
-            <textarea
-              id="gpt-output"
-              placeholder="ChatGPTから返ってきたJSONをここに貼り付けてください"
-              spellcheck="false"
-            ></textarea>
-
-            <div style="margin-top: 4px; display: flex; gap: 4px; flex-wrap: wrap;">
-              <button id="btn-import-json">JSONを取り込む</button>
-              <button id="btn-restore-state" disabled>
-                ロールバック(UNDO)
-              </button>
-              <button id="btn-redo-state" disabled>
-                やり直し(REDO)
-              </button>
-            </div>
-
-            <p style="font-size: 10px; color: #666; margin-top: 2px;">
-              ※UNDO/REDO は、直近の状態から最大5ステップまで戻したり進めたりできます（色のマークも含めて復元）。
-            </p>
-
-            <details id="state-io-panel">
-              <summary>状態のエクスポート／インポート（ファイル）</summary>
-              <p style="font-size: 11px; margin-top: 4px;">
-                現在の状態（JSON・選択中アイテム・色マーク情報など）を
-                <strong>.json テキストファイル</strong>
-                として保存・再読み込みできます。
-              </p>
-
-              <div style="margin-top: 4px; display: flex; gap: 4px; flex-wrap: wrap; align-items: center;">
-                <button id="btn-export-state-file">状態をファイルに保存</button>
-                <input
-                  id="state-file-input"
-                  type="file"
-                  accept=".json,application/json,text/plain"
-                  style="display: none;"
-                />
-                <button id="btn-import-state-file">ファイルから状態を読み込み</button>
+              <div id="drawing-container" style="margin-top: 6px;">
+                <div id="drawing-layer">
+                  <img id="drawing-image" alt="drawing preview" />
+                  <div id="drawing-pdf"></div>
+                  <div id="drawing-highlight"></div>
+                </div>
               </div>
-
-              <p style="font-size: 10px; color: #666; margin-top: 2px;">
-                ※保存したファイルを同じボタンから読み込むことで、別のマシンや後日でも同じ状態に復元できます。
-              </p>
-            </details>
+            <p style="font-size: 10px; color: #666; margin-top: 4px;">
+              ※PDFはスクロールで移動します。構造物JSONに drawing.bbox（0〜1の正規化座標）がある場合、行を選択すると該当位置がハイライトされます。
+            </p>
           </div>
         </div>
       </div>
+      <div id="column-resizer" title="ドラッグで幅を調整"></div>
 
       <!-- 右カラム：構造物一覧＋編集 -->
       <div class="column column-right">
         <div id="right-scroll">
           <div id="right-scroll-inner">
             <div class="tab-bar" style="margin-bottom: 6px;">
-              <div class="tabs">
-                <button id="page-tab-extract" class="tab-btn active" type="button">構造物編集</button>
-                <button id="page-tab-estimate" class="tab-btn" type="button">見積書作成</button>
+                <div class="tabs">
+                  <button id="page-tab-prompt" class="tab-btn" type="button">プロンプト/JSON</button>
+                  <button id="page-tab-extract" class="tab-btn active" type="button">構造物編集</button>
+                  <button id="page-tab-estimate" class="tab-btn" type="button">見積書作成</button>
+                </div>
+            </div>
+
+            <div id="prompt-page" hidden>
+              <div class="section">
+                <h2>1. プロンプト生成（ChatGPTに手動で投げる用）</h2>
+                <div>
+                  <label for="stage-select">ステージ:</label>
+                  <select id="stage-select">
+                    <option value="extract">1: 図面→構造物抽出</option>
+                    <option value="update">2: JSON差分反映</option>
+                    <option value="estimate">3: 最終積算</option>
+                  </select>
+                  <button id="btn-load-prompt">プロンプト読込</button>
+                </div>
+                <p style="font-size: 11px; margin-top: 4px;">
+                  ※テストモード時：ここに表示されたプロンプトをChatGPTに貼り付け、図面ファイルも添付して実行してください。
+                </p>
+              </div>
+
+              <div id="prompt-area">
+                <textarea id="prompt-text" spellcheck="false"></textarea>
+              </div>
+
+              <div id="json-input-area">
+                <h2 style="font-size: 13px; margin: 0 0 4px;">
+                  2. ChatGPT出力(JSON)の貼り付け
+                </h2>
+                <p style="font-size: 11px; margin-top: 2px;">
+                  ChatGPTから返ってきたJSONを下に貼り付け、「JSONを取り込む」を押してください。
+                </p>
+                <textarea
+                  id="gpt-output"
+                  placeholder="ChatGPTから返ってきたJSONをここに貼り付けてください"
+                  spellcheck="false"
+                ></textarea>
+
+                <div style="margin-top: 4px; display: flex; gap: 4px; flex-wrap: wrap;">
+                  <button id="btn-import-json">JSONを取り込む</button>
+                  <button id="btn-restore-state" disabled>
+                    ロールバック(UNDO)
+                  </button>
+                  <button id="btn-redo-state" disabled>
+                    やり直し(REDO)
+                  </button>
+                </div>
+
+                <p style="font-size: 10px; color: #666; margin-top: 2px;">
+                  ※UNDO/REDO は、直近の状態から最大5ステップまで戻したり進めたりできます（色のマークも含めて復元）。
+                </p>
+
+                <details id="state-io-panel">
+                  <summary>状態のエクスポート／インポート（ファイル）</summary>
+                  <p style="font-size: 11px; margin-top: 4px;">
+                    現在の状態（JSON・選択中アイテム・色マーク情報など）を
+                    <strong>.json テキストファイル</strong>
+                    として保存・再読み込みできます。
+                  </p>
+
+                  <div style="margin-top: 4px; display: flex; gap: 4px; flex-wrap: wrap; align-items: center;">
+                    <button id="btn-export-state-file">状態をファイルに保存</button>
+                    <input
+                      id="state-file-input"
+                      type="file"
+                      accept=".json,application/json,text/plain"
+                      style="display: none;"
+                    />
+                    <button id="btn-import-state-file">ファイルから状態を読み込み</button>
+                  </div>
+
+                  <p style="font-size: 10px; color: #666; margin-top: 2px;">
+                    ※保存したファイルを同じボタンから読み込むことで、別のマシンや後日でも同じ状態に復元できます。
+                  </p>
+                </details>
               </div>
             </div>
 
@@ -996,7 +1092,6 @@
               </div>
             </div>
           </div>
-          </div>
 
           <div id="estimate-page" hidden>
             <div class="section">
@@ -1144,6 +1239,10 @@
       </div><!-- /right -->
     </main>
 
+    <script type="module">
+      import * as pdfjsLib from "../../node_modules/pdfjs-dist/build/pdf.mjs";
+      window.pdfjsLib = pdfjsLib;
+    </script>
     <script src="./renderer.js"></script>
   </body>
 </html>
